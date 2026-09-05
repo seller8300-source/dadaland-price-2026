@@ -1,0 +1,22 @@
+[project]
+name = "dada-ads-control-center"
+version = "0.1.0"
+description = "DADA NAVER ADS AI CONTROL CENTER — backend"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+addopts = "-q"
+
+[tool.ruff]
+# 한글 문자열/주석이 많아 여유를 둔다
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]  # FastAPI 의 Depends() 기본값 패턴
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
