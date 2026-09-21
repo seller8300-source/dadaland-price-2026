@@ -1,0 +1,14 @@
+{
+  "name": "stonekim-photo-collection",
+  "version": "0.1.0",
+  "private": true,
+  "description": "STONEKIM 시공사진 자동수집 시스템 (MVP)",
+  "type": "commonjs",
+  "engines": { "node": ">=22.5.0" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node scripts/seed.js",
+    "test": "node --test test/*.test.js"
+  }
+}
