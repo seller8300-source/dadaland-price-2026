@@ -17,6 +17,12 @@ main{padding:22px 20px 40px}
 .sub{font-size:13px;color:var(--muted);margin-bottom:22px}
 .card{border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px;background:#fff}
 .card h2{font-size:14px;font-weight:600;margin-bottom:10px}
+.reward{border:1px solid var(--ink);border-radius:12px;padding:15px 16px;margin-bottom:18px}
+.reward .rh{font-size:14.5px;font-weight:600;line-height:1.5}
+.reward ul{list-style:none;margin-top:10px}
+.reward li{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:5px 0;border-top:1px solid var(--line)}
+.reward li b{font-weight:600;white-space:nowrap}
+.reward .rc{margin-top:10px;font-size:11.8px;color:var(--muted);line-height:1.7}
 .order-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:var(--muted)}
 .order-row span:last-child{color:var(--ink);text-align:right;max-width:62%}
 .section-title{font-size:14px;font-weight:600;margin:26px 0 10px;display:flex;justify-content:space-between;align-items:baseline}
@@ -96,7 +102,7 @@ const GUIDE_SHOTS = [
 ];
 
 /** 고객 사진등록 화면 */
-function uploadPage({ project, customer, consentText, privacyText, rewardNotice, minPhotos, maxPhotos, error }) {
+function uploadPage({ project, customer, consentText, privacyText, reward, minPhotos, maxPhotos, error }) {
   const orderRows = [
     ['주문번호', project.order_number],
     ['제품', project.product],
@@ -111,7 +117,16 @@ function uploadPage({ project, customer, consentText, privacyText, rewardNotice,
 ${header()}
 <main>
   <div class="lead"><b>완성된 공간을 보여주세요.</b></div>
-  <div class="sub">${escapeHtml(rewardNotice)}</div>
+  <div class="sub">등록해주신 사진은 확인 후 리워드를 드립니다.</div>
+
+  <div class="reward">
+    <div class="rh">${escapeHtml(reward.headline)}</div>
+    <ul>
+      <li><span>사진 등록 확인</span><b>${escapeHtml(reward.baseWords)}</b></li>
+      <li><span>스톤킴 시공사례로 선정</span><b>최대 ${escapeHtml(reward.maxWords)}</b></li>
+    </ul>
+    <div class="rc">${escapeHtml(reward.criteria)}</div>
+  </div>
 
   <div class="card">
     <h2>${escapeHtml(customer.name)} 고객님 주문내역</h2>
@@ -269,7 +284,7 @@ function uploadScript(minPhotos, maxPhotos) {
 }
 
 /** 제출 완료 화면 */
-function donePage({ photoCount }) {
+function donePage({ photoCount, reward }) {
   const body = `
 ${header()}
 <div class="done">
@@ -277,6 +292,14 @@ ${header()}
   <h1>사진이 정상적으로 등록되었습니다.</h1>
   <p>소중한 시공사진 감사합니다.<br>확인 후 리워드 대상 여부를 안내드리겠습니다.</p>
   ${photoCount ? `<p style="margin-top:18px;font-size:13px">등록된 사진 ${photoCount}장</p>` : ''}
+  ${
+    reward
+      ? `<div class="reward" style="text-align:left;margin:26px 20px 0">
+           <div class="rh" style="font-size:13.5px">${escapeHtml(reward.headline)}</div>
+           <div class="rc">${escapeHtml(reward.criteria)}</div>
+         </div>`
+      : ''
+  }
 </div>`;
   return shell({ title: '등록 완료 · STONEKIM', body });
 }

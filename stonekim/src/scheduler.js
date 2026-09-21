@@ -2,7 +2,8 @@
 const { getDb, getSetting } = require('./db');
 const { deliver } = require('./messaging');
 const templates = require('./templates');
-const { dateStringPlusDays, isoPlusDaysAtHour, nowIso } = require('./util');
+const rewardTiers = require('./reward');
+const { dateStringPlusDays, isoPlusDaysAtHour, nowIso, toDateString } = require('./util');
 
 /** 발송 단계 전이: 1차 → (+7일) 2차 → (+14일) 최종 → 종료 */
 const NEXT_TYPE = { FIRST: 'SECOND', SECOND: 'FINAL', FINAL: null };
@@ -163,8 +164,18 @@ async function sendScheduledMessage(row) {
     return { skipped: 'EXCLUDED' };
   }
 
-  const body = templates.buildBody(row.message_type, uploadUrl(project.upload_token));
-  const result = await deliver({ phone: row.phone, body, messageType: row.message_type });
+  const link = uploadUrl(project.upload_token);
+  const tiers = rewardTiers.current();
+  const body = templates.buildBody(row.message_type, link, tiers);
+  // 승인된 알림톡 템플릿의 치환변수 (템플릿 등록 시 아래 이름으로 신청한다)
+  const variables = {
+    '#{고객명}': row.customer_name || '고객',
+    '#{토큰}': project.upload_token, // 버튼 URL 이 .../project/upload/#{토큰} 형태인 템플릿용
+    '#{링크}': link,
+    '#{기본리워드}': tiers.baseWords,
+    '#{최대리워드}': tiers.maxWords,
+  };
+  const result = await deliver({ phone: row.phone, body, messageType: row.message_type, variables });
   const sentAt = nowIso();
   markMessage(row.message_id, result, body, sentAt, row.phone);
 
@@ -176,9 +187,39 @@ async function sendScheduledMessage(row) {
   return { sent: result.status, message_id: row.message_id };
 }
 
-/** 예약 시각이 지난 메시지를 모두 처리한다. */
+/** 오늘(KST) 실제로 발송된 건수 */
+function sentToday(now = new Date()) {
+  const today = toDateString(now);
+  const start = dateStringPlusDays(today, 0, 0);
+  const end = dateStringPlusDays(today, 1, 0);
+  return getDb()
+    .prepare(
+      `SELECT COUNT(*) AS c FROM messages
+        WHERE status IN ('SENT','SENT_SMS') AND sent_at >= ? AND sent_at < ?`
+    )
+    .get(start, end).c;
+}
+
+/** 일일 발송 한도 (0 = 무제한). 소규모 오픈·대량발송 사고 방지용 안전장치. */
+function dailyLimit() {
+  const value = Number(getSetting('daily_send_limit', '0'));
+  return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+}
+
+/**
+ * 예약 시각이 지난 메시지를 처리한다.
+ * 일일 한도가 설정되어 있으면 남은 건수만 발송하고 나머지는 예약 상태로 남긴다.
+ */
 async function processDue(now = new Date()) {
-  const rows = dueMessages(now);
+  let rows = dueMessages(now);
+  const limit = dailyLimit();
+  if (limit) {
+    const remaining = Math.max(0, limit - sentToday(now));
+    if (rows.length > remaining) {
+      console.log(`[scheduler] 일일 한도(${limit}건) 도달 · ${rows.length - remaining}건은 다음 처리로 미룸`);
+      rows = rows.slice(0, remaining);
+    }
+  }
   const results = [];
   for (const row of rows) {
     try {
@@ -220,6 +261,7 @@ async function sendNow(projectId, messageType = 'FIRST') {
     project_id: projectId,
     message_type: messageType,
     phone: customer.phone,
+    customer_name: customer.name,
   };
   const res = await sendScheduledMessage(row);
   return { ok: true, ...res };
@@ -286,4 +328,6 @@ module.exports = {
   startScheduler,
   stopScheduler,
   sendHour,
+  sentToday,
+  dailyLimit,
 };

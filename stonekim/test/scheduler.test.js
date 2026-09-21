@@ -161,6 +161,28 @@ test('관리자 즉시 발송', async () => {
   assert.equal(rows.filter((m) => m.message_type === 'SECOND' && m.status === 'SCHEDULED').length, 1);
 });
 
+test('일일 발송 한도를 넘으면 나머지는 예약 상태로 남는다 (소규모 오픈 안전장치)', async () => {
+  const { setSetting } = require('../src/db');
+  const a = createProject({ order: 'SK111', shipDate: '2020-01-01', installDate: '2020-01-02' });
+  const b = createProject({ order: 'SK112', shipDate: '2020-01-01', installDate: '2020-01-02' });
+  scheduler.scheduleFirstMessage(a);
+  scheduler.scheduleFirstMessage(b);
+
+  setSetting('daily_send_limit', scheduler.sentToday() + 1);
+  await scheduler.processDue(new Date());
+
+  const firstOf = (id) => messagesOf(id).find((m) => m.message_type === 'FIRST');
+  const sent = [a, b].filter((id) => firstOf(id).status === 'SENT');
+  const pending = [a, b].filter((id) => firstOf(id).status === 'SCHEDULED');
+  assert.equal(sent.length, 1, '한도만큼만 발송된다');
+  assert.equal(pending.length, 1, '나머지는 취소되지 않고 예약 상태로 남는다');
+
+  // 한도를 풀면 남은 건이 발송된다
+  setSetting('daily_send_limit', 0);
+  await scheduler.processDue(new Date());
+  assert.equal([a, b].filter((id) => firstOf(id).status === 'SENT').length, 2);
+});
+
 test('메시지 본문에 고유 업로드 링크가 포함된다', () => {
   const body = require('../src/templates').buildBody('FIRST', 'http://test.local/project/upload/abc');
   assert.match(body, /http:\/\/test\.local\/project\/upload\/abc/);

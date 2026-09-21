@@ -4,6 +4,7 @@ const { nowIso } = require('../util');
 const http = require('../http');
 const multipart = require('../multipart');
 const photos = require('../photos');
+const rewardTiers = require('../reward');
 const scheduler = require('../scheduler');
 const view = require('../views/customer');
 
@@ -32,7 +33,7 @@ function settingsForPage() {
   return {
     consentText: getSetting('consent_text'),
     privacyText: getSetting('privacy_text'),
-    rewardNotice: getSetting('reward_notice'),
+    reward: rewardTiers.current(),
     minPhotos: photos.limits().min,
     maxPhotos: photos.limits().max,
   };
@@ -57,7 +58,7 @@ async function handle(req, res, url) {
     const count = getDb()
       .prepare('SELECT COUNT(*) AS c FROM photos WHERE project_id = ?')
       .get(found.project.project_id).c;
-    return http.html(res, view.donePage({ photoCount: count }));
+    return http.html(res, view.donePage({ photoCount: count, reward: rewardTiers.current() }));
   }
 
   if (!params) return false;
@@ -72,7 +73,7 @@ async function handle(req, res, url) {
       const count = getDb()
         .prepare('SELECT COUNT(*) AS c FROM photos WHERE project_id = ?')
         .get(project.project_id).c;
-      return http.html(res, view.donePage({ photoCount: count }));
+      return http.html(res, view.donePage({ photoCount: count, reward: rewardTiers.current() }));
     }
     return http.html(res, view.uploadPage({ project, customer, error: null, ...settingsForPage() }));
   }

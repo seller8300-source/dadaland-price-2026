@@ -51,9 +51,13 @@ function findHeaderRow(rows) {
 
 /**
  * 업로드된 파일을 검증해 미리보기 결과를 만든다.
- * @returns {{rows: Array, summary: Object, headerMap: Object}}
+ * @param {Buffer} buffer 업로드 파일
+ * @param {string} fileName 원본 파일명(형식 판별용)
+ * @param {{checkExisting?: boolean}} options checkExisting=false 면 DB 를 건드리지 않는다(진단 스크립트용)
+ * @returns {{rows: Array, summary: Object, headerMap: Object, missingColumns: string[]}}
  */
-function parseUpload(buffer, fileName) {
+function parseUpload(buffer, fileName, options = {}) {
+  const checkExisting = options.checkExisting !== false;
   const table = readTable(buffer, fileName);
   const { index: headerIndex, map } = findHeaderRow(table);
   if (headerIndex < 0) {
@@ -62,8 +66,9 @@ function parseUpload(buffer, fileName) {
     );
   }
 
-  const db = getDb();
-  const existsStmt = db.prepare('SELECT project_id FROM projects WHERE order_number = ?');
+  const existsStmt = checkExisting
+    ? getDb().prepare('SELECT project_id FROM projects WHERE order_number = ?')
+    : null;
   const seen = new Map();
   const rows = [];
 
@@ -100,7 +105,7 @@ function parseUpload(buffer, fileName) {
     if (record.order_number) {
       if (seen.has(record.order_number)) {
         errors.push({ code: 'DUP_FILE', text: `파일 내 중복 (${seen.get(record.order_number)}행)` });
-      } else if (existsStmt.get(record.order_number)) {
+      } else if (existsStmt && existsStmt.get(record.order_number)) {
         errors.push({ code: 'DUP_DB', text: '이미 등록된 주문번호' });
       } else {
         seen.set(record.order_number, record.line);
@@ -114,7 +119,8 @@ function parseUpload(buffer, fileName) {
   }
 
   const summary = summarize(rows);
-  return { rows, summary, headerMap: map };
+  const missingColumns = Object.keys(HEADER_ALIASES).filter((field) => map[field] === undefined);
+  return { rows, summary, headerMap: map, missingColumns };
 }
 
 function summarize(rows) {

@@ -332,7 +332,7 @@ function projectsPage({ rows, filter, query, page, pages, total, session, flash 
   return layout({ title: '주문·현장', active: '/admin/projects', session, content, flash });
 }
 
-function projectDetailPage({ project, customer, photos, messages, reward, session, flash }) {
+function projectDetailPage({ project, customer, photos, messages, reward, rewardTiers, session, flash }) {
   const csrf = `<input type="hidden" name="csrf" value="${escapeHtml(session.csrf)}">`;
 
   const photoCards = photos
@@ -366,13 +366,14 @@ function projectDetailPage({ project, customer, photos, messages, reward, sessio
     .join('');
 
   const rewardStatus = reward ? reward.status : 'PENDING';
-  const amountOptions = [0, 10000, 30000, 50000]
-    .map(
-      (amount) =>
-        `<option value="${amount}" ${reward && reward.amount === amount ? 'selected' : ''}>${
-          amount === 0 ? '리워드 없음' : won(amount)
-        }</option>`
-    )
+  const amountOptions = rewardTiers.presets
+    .map((amount) => {
+      const note =
+        amount === rewardTiers.base ? ' · 기본' : amount === rewardTiers.max ? ' · 시공사례 선정' : '';
+      return `<option value="${amount}" ${reward && reward.amount === amount ? 'selected' : ''}>${
+        amount === 0 ? '리워드 없음' : won(amount) + note
+      }</option>`;
+    })
     .join('');
 
   const content = `
@@ -687,7 +688,7 @@ ${summary.other ? `<div class="flash err">기타 오류 ${summary.other}건은 �
   return layout({ title: '업로드 미리보기', active: '/admin/import', session, content, flash });
 }
 
-function settingsPage({ session, flash, settings, audits, provider, baseUrl }) {
+function settingsPage({ session, flash, settings, audits, provider, baseUrl, rewardTiers, sentToday, messagePreview }) {
   const auditRows = audits
     .map(
       (a) => `<tr>
@@ -701,7 +702,14 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl }) {
 
   const content = `
 <h1 class="page">설정</h1>
-<div class="page-sub">발송 채널: ${escapeHtml(provider)} · 업로드 기본 주소: ${escapeHtml(baseUrl)}</div>
+<div class="page-sub">발송 채널: ${escapeHtml(provider)} · 업로드 기본 주소: ${escapeHtml(baseUrl)} · 오늘 발송 ${sentToday}건${
+    Number(settings.daily_send_limit) > 0 ? ` / 한도 ${escapeHtml(settings.daily_send_limit)}건` : ''
+  }</div>
+
+<div class="card">
+  <h2>발송될 1차 메시지 <span class="sub">${escapeHtml(messagePreview.meta)}</span></h2>
+  <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.7;background:#FAFAF9;border:1px solid var(--line);border-radius:8px;padding:14px;margin:0">${escapeHtml(messagePreview.body)}</pre>
+</div>
 
 <div class="card">
   <h2>테스트 발송</h2>
@@ -727,8 +735,24 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl }) {
       <textarea name="privacy_text">${escapeHtml(settings.privacy_text)}</textarea>
     </div>
     <div class="field">
-      <label>리워드 안내 문구</label>
-      <textarea name="reward_notice">${escapeHtml(settings.reward_notice)}</textarea>
+      <label>리워드 기준 안내 문구 (고객 화면·완료 화면)</label>
+      <textarea name="reward_criteria_text">${escapeHtml(settings.reward_criteria_text)}</textarea>
+      <div class="hint">고객에게 보이는 문구: <b>${escapeHtml(rewardTiers.headline)}</b></div>
+    </div>
+    <div class="row">
+      <div class="field" style="margin:0"><label>기본 리워드 (사진 등록 확인)</label>
+        <input type="number" name="reward_base_amount" min="0" step="1000" value="${escapeHtml(settings.reward_base_amount)}" style="width:150px"></div>
+      <div class="field" style="margin:0"><label>최대 리워드 (시공사례 선정)</label>
+        <input type="number" name="reward_max_amount" min="0" step="1000" value="${escapeHtml(settings.reward_max_amount)}" style="width:150px"></div>
+      <div class="field" style="margin:0"><label>메시지 문구 유형</label>
+        <select name="message_variant">
+          <option value="reward" ${settings.message_variant !== 'info' ? 'selected' : ''}>리워드 기준 명시 (등록률 우선)</option>
+          <option value="info" ${settings.message_variant === 'info' ? 'selected' : ''}>정보성 문구 (알림톡 심사 우선)</option>
+        </select>
+        <div class="hint">알림톡 템플릿이 광고성으로 반려되면 정보성으로 바꾸세요.<br>리워드 금액은 업로드 페이지에서 계속 안내됩니다.</div></div>
+      <div class="field" style="margin:0"><label>일일 발송 한도 (0=무제한)</label>
+        <input type="number" name="daily_send_limit" min="0" max="10000" value="${escapeHtml(settings.daily_send_limit)}" style="width:150px">
+        <div class="hint">소규모 오픈 시 하루 발송 건수를 제한합니다.</div></div>
     </div>
     <div class="row">
       <div class="field" style="margin:0"><label>최소 사진 수</label><input type="number" name="min_photos" min="1" max="10" value="${escapeHtml(settings.min_photos)}" style="width:110px"></div>

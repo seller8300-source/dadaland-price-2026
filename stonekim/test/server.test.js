@@ -334,6 +334,56 @@ test('사진 검수 · 리워드 저장', async () => {
   assert.ok(reward.paid_at, '지급완료일 기록');
 });
 
+test('설정 저장: 리워드 금액·문구 유형·발송 한도', async () => {
+  const { cookie, csrf } = await login();
+  const res = await fetch(`${base}/admin/settings`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      csrf,
+      consent_text: '사진 활용에 동의합니다.',
+      privacy_text: '개인정보 안내',
+      reward_criteria_text: '기준 설명',
+      reward_base_amount: '20000',
+      reward_max_amount: '50000',
+      message_variant: 'info',
+      daily_send_limit: '30',
+      min_photos: '2',
+      max_photos: '8',
+      send_hour_kst: '11',
+      test_phone: '010-1111-2222',
+    }),
+    redirect: 'manual',
+  });
+  assert.equal(res.status, 302);
+
+  const { getSetting } = require('../src/db');
+  assert.equal(getSetting('reward_base_amount'), '20000');
+  assert.equal(getSetting('message_variant'), 'info');
+  assert.equal(getSetting('daily_send_limit'), '30');
+
+  // 정보성 문구로 전환하면 메시지에서 금액이 빠지고, 고객 화면에는 그대로 남는다
+  const body = require('../src/templates').buildBody('FIRST', 'https://x/y');
+  assert.doesNotMatch(body, /만원/);
+  const { token } = seedProject('SK909');
+  const page = await (await fetch(`${base}/project/upload/${token}`)).text();
+  assert.match(page, /2만원/);
+  assert.match(page, /최대 5만원/);
+
+  // 원상 복구 (뒤따르는 테스트에 영향 없도록)
+  await fetch(`${base}/admin/settings`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      csrf, consent_text: '사진 활용에 동의합니다.', privacy_text: '개인정보 안내',
+      reward_criteria_text: '기준 설명', reward_base_amount: '10000', reward_max_amount: '50000',
+      message_variant: 'reward', daily_send_limit: '0', min_photos: '3', max_photos: '10',
+      send_hour_kst: '10', test_phone: '',
+    }),
+    redirect: 'manual',
+  });
+});
+
 test('로그아웃하면 세션이 무효화된다', async () => {
   const { cookie, csrf } = await login();
   await fetch(`${base}/admin/logout`, {

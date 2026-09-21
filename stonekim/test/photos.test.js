@@ -76,7 +76,9 @@ test('사진을 저장하고 경로 탈출을 막는다', () => {
     const full = photos.absolutePath(row);
     assert.ok(full.startsWith(path.resolve(photos.UPLOAD_DIR)), '업로드 디렉터리를 벗어나지 않는다');
     assert.ok(fs.existsSync(full));
-    assert.match(path.basename(full), /^[a-z0-9-]+\.jpg$/i, '파일명은 서버가 생성한다');
+    // 서버가 만든 파일명(base64url 토큰)만 허용 — 고객이 올린 원본 파일명은 쓰지 않는다
+    assert.match(path.basename(full), /^[A-Za-z0-9_-]+\.jpg$/, '파일명은 서버가 생성한다');
+    assert.doesNotMatch(path.basename(full), /evil|\.\./);
   }
 });
 

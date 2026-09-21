@@ -9,6 +9,7 @@ const scheduler = require('../scheduler');
 const importer = require('../import');
 const stats = require('../stats');
 const templates = require('../templates');
+const rewardTiers = require('../reward');
 const messaging = require('../messaging');
 const view = require('../views/admin');
 const { nowIso, normalizePhone, normalizeDate } = require('../util');
@@ -209,6 +210,10 @@ function projectDetail(req, res, url, session, projectId) {
       photos: photosLib.listPhotos(projectId),
       messages,
       reward,
+      rewardTiers: (() => {
+        const tiers = rewardTiers.current();
+        return { ...tiers, presets: rewardTiers.presets(tiers) };
+      })(),
       session,
       flash: flashFrom(url),
     })
@@ -525,6 +530,14 @@ function importDiscard(req, res, session, batchId) {
 
 /* ----------------------------------------------------------------- 설정 */
 
+/** 설정 화면에 실제 발송될 1차 메시지를 그대로 보여준다 */
+function previewFirstMessage() {
+  const body = templates.buildBody('FIRST', `${scheduler.baseUrl()}/project/upload/SAMPLE-TOKEN`);
+  const bytes = messaging.smsByteLength(body);
+  const variant = templates.currentVariant() === 'info' ? '정보성 문구' : '리워드 기준 명시';
+  return { body, meta: `${variant} · ${bytes}바이트 · 대체발송 시 ${messaging.smsChannel(body)}` };
+}
+
 function settingsPage(req, res, url, session) {
   const audits = getDb().prepare('SELECT * FROM audit_logs ORDER BY log_id DESC LIMIT 30').all();
   return http.html(
@@ -535,15 +548,22 @@ function settingsPage(req, res, url, session) {
       settings: {
         consent_text: getSetting('consent_text'),
         privacy_text: getSetting('privacy_text'),
-        reward_notice: getSetting('reward_notice'),
+        reward_criteria_text: getSetting('reward_criteria_text'),
+        reward_base_amount: getSetting('reward_base_amount'),
+        reward_max_amount: getSetting('reward_max_amount'),
+        daily_send_limit: getSetting('daily_send_limit'),
+        message_variant: templates.currentVariant(),
         min_photos: getSetting('min_photos'),
         max_photos: getSetting('max_photos'),
         send_hour_kst: getSetting('send_hour_kst'),
         test_phone: getSetting('test_phone'),
       },
       audits,
-      provider: messaging.provider() === 'mock' ? '모의 발송 (mock)' : 'HTTP 게이트웨이',
+      provider: messaging.providerLabel(),
       baseUrl: scheduler.baseUrl(),
+      rewardTiers: rewardTiers.current(),
+      sentToday: scheduler.sentToday(),
+      messagePreview: previewFirstMessage(),
     })
   );
 }
@@ -552,7 +572,7 @@ async function settingsSave(req, res, session) {
   const fields = await readFormBody(req, res);
   if (!fields) return true;
   if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/settings', 'csrf'));
-  const textKeys = ['consent_text', 'privacy_text', 'reward_notice'];
+  const textKeys = ['consent_text', 'privacy_text', 'reward_criteria_text'];
   for (const key of textKeys) {
     if (fields[key] !== undefined) setSetting(key, String(fields[key]).slice(0, 2000));
   }
@@ -563,6 +583,12 @@ async function settingsSave(req, res, session) {
   const hour = Math.max(0, Math.min(23, Number(fields.send_hour_kst)));
   setSetting('send_hour_kst', Number.isFinite(hour) ? hour : 10);
   setSetting('test_phone', normalizePhone(fields.test_phone) || '');
+  const baseAmount = Math.max(0, Math.round(Number(fields.reward_base_amount) || 0));
+  const maxAmount = Math.max(baseAmount, Math.round(Number(fields.reward_max_amount) || 0));
+  setSetting('reward_base_amount', baseAmount);
+  setSetting('reward_max_amount', maxAmount);
+  setSetting('daily_send_limit', Math.max(0, Math.round(Number(fields.daily_send_limit) || 0)));
+  setSetting('message_variant', templates.variantOf(fields.message_variant));
   audit(session, 'SETTINGS_UPDATE', null, null, http.clientIp(req));
   return http.redirect(res, flashUrl('/admin/settings', 'saved'));
 }
@@ -575,8 +601,20 @@ async function testSend(req, res, session) {
   if (!phone) return http.redirect(res, flashUrl('/admin/settings', 'test_failed'));
   const type = ['FIRST', 'SECOND', 'FINAL'].includes(fields.type) ? fields.type : 'FIRST';
   const sampleUrl = `${scheduler.baseUrl()}/project/upload/TEST-PREVIEW`;
-  const body = templates.buildBody(type, sampleUrl);
-  const result = await messaging.deliver({ phone, body, messageType: type });
+  const tiers = rewardTiers.current();
+  const body = templates.buildBody(type, sampleUrl, tiers);
+  const result = await messaging.deliver({
+    phone,
+    body,
+    messageType: type,
+    variables: {
+      '#{고객명}': '테스트',
+      '#{토큰}': 'TEST-PREVIEW',
+      '#{링크}': sampleUrl,
+      '#{기본리워드}': tiers.baseWords,
+      '#{최대리워드}': tiers.maxWords,
+    },
+  });
   getDb()
     .prepare(
       `INSERT INTO messages (project_id, to_phone, message_type, scheduled_at, sent_at, channel, status, failure_reason, body, provider_ref, created_at)

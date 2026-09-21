@@ -144,7 +144,15 @@ const DEFAULT_SETTINGS = {
     '제출한 사진을 스톤킴의 홈페이지, SNS, 블로그, 카탈로그 및 광고·홍보 콘텐츠에 활용하는 것에 동의합니다.',
   privacy_text:
     '리워드 지급 및 사진 활용 안내를 위해 주문정보(성함·연락처)를 이용하며, 목적 달성 후 파기합니다. 자세한 내용은 스톤킴 개인정보처리방침을 따릅니다.',
-  reward_notice: '선정된 시공사례에는 최대 5만원의 리워드를 드립니다.',
+  reward_base_amount: '10000',
+  reward_max_amount: '50000',
+  reward_criteria_text:
+    '사진 3장 이상을 등록해주시면 확인 후 기본 리워드를 드립니다. ' +
+    '완공된 현장이 잘 보이는 사진은 시공사례로 선정되어 추가 리워드를 드립니다. ' +
+    '지급까지는 영업일 기준 7일 정도 걸립니다.',
+  daily_send_limit: '0',
+  // reward = 리워드 기준을 문구에 명시 / info = 혜택 표현 없는 정보성 문구(알림톡 심사 반려 시)
+  message_variant: 'reward',
   test_phone: '',
   min_photos: '3',
   max_photos: '10',
