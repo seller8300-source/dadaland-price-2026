@@ -3,7 +3,7 @@ const { getDb, getSetting } = require('./db');
 const { deliver } = require('./messaging');
 const templates = require('./templates');
 const rewardTiers = require('./reward');
-const { dateStringPlusDays, isoPlusDaysAtHour, nowIso, toDateString } = require('./util');
+const { dateStringPlusDays, isoPlusDaysAtHour, nowIso, toDateString, normalizePhone } = require('./util');
 
 /** 발송 단계 전이: 1차 → (+7일) 2차 → (+14일) 최종 → 종료 */
 const NEXT_TYPE = { FIRST: 'SECOND', SECOND: 'FINAL', FINAL: null };
@@ -41,6 +41,24 @@ function computeFollowUpAt(nextType, prevSentAtIso, hour = 10) {
   const days = FOLLOWUP_DAYS[nextType];
   if (!days) return null;
   return isoPlusDaysAtHour(prevSentAtIso, days, hour);
+}
+
+/**
+ * 발송 허용 번호 목록.
+ * 값이 있으면 이 번호들에만 발송한다(대표 번호 실전 테스트 중 고객 오발송 방지).
+ * @returns {string[]} 빈 배열이면 제한 없음
+ */
+function allowlist() {
+  return String(getSetting('send_allowlist', ''))
+    .split(/[,\s]+/)
+    .map((value) => normalizePhone(value))
+    .filter(Boolean);
+}
+
+function isAllowed(phone) {
+  const allowed = allowlist();
+  if (!allowed.length) return true;
+  return allowed.includes(normalizePhone(phone));
 }
 
 function getProject(projectId) {
@@ -163,6 +181,10 @@ async function sendScheduledMessage(row) {
     cancelScheduled(project.project_id, 'CANCELED_ADMIN', '발송 제외 대상');
     return { skipped: 'EXCLUDED' };
   }
+  // 허용 번호 목록이 설정된 동안에는 그 외 번호로 나가지 않는다. 예약은 취소하지 않고 그대로 둔다.
+  if (!isAllowed(row.phone)) {
+    return { skipped: 'NOT_ALLOWLISTED' };
+  }
 
   const link = uploadUrl(project.upload_token);
   const tiers = rewardTiers.current();
@@ -172,7 +194,6 @@ async function sendScheduledMessage(row) {
     '#{고객명}': row.customer_name || '고객',
     '#{토큰}': project.upload_token, // 버튼 URL 이 .../project/upload/#{토큰} 형태인 템플릿용
     '#{링크}': link,
-    '#{기본리워드}': tiers.baseWords,
     '#{최대리워드}': tiers.maxWords,
   };
   const result = await deliver({ phone: row.phone, body, messageType: row.message_type, variables });
@@ -243,6 +264,13 @@ async function sendNow(projectId, messageType = 'FIRST') {
   if (!project) return { ok: false, error: '주문을 찾을 수 없습니다.' };
   if (project.message_excluded) return { ok: false, error: '발송 제외 대상입니다.' };
   if (STOP_STATUSES.has(project.status)) return { ok: false, error: '이미 사진이 등록된 주문입니다.' };
+
+  const customerRow = getDb()
+    .prepare('SELECT phone FROM customers WHERE customer_id = ?')
+    .get(project.customer_id);
+  if (!isAllowed(customerRow.phone)) {
+    return { ok: false, error: '발송 허용 번호 목록에 없는 번호입니다. (설정 > 발송 허용 번호)' };
+  }
 
   const customer = getDb()
     .prepare('SELECT * FROM customers WHERE customer_id = ?')
@@ -330,4 +358,6 @@ module.exports = {
   sendHour,
   sentToday,
   dailyLimit,
+  allowlist,
+  isAllowed,
 };

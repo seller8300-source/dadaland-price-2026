@@ -12,7 +12,7 @@ const templates = require('../templates');
 const rewardTiers = require('../reward');
 const messaging = require('../messaging');
 const view = require('../views/admin');
-const { nowIso, normalizePhone, normalizeDate } = require('../util');
+const { nowIso, normalizePhone, normalizeDate, formatPhone } = require('../util');
 
 const PAGE_SIZE = 30;
 const MAX_FORM_BYTES = 1024 * 256;
@@ -210,10 +210,7 @@ function projectDetail(req, res, url, session, projectId) {
       photos: photosLib.listPhotos(projectId),
       messages,
       reward,
-      rewardTiers: (() => {
-        const tiers = rewardTiers.current();
-        return { ...tiers, presets: rewardTiers.presets(tiers) };
-      })(),
+      rewardTiers: rewardTiers.current(),
       session,
       flash: flashFrom(url),
     })
@@ -549,9 +546,9 @@ function settingsPage(req, res, url, session) {
         consent_text: getSetting('consent_text'),
         privacy_text: getSetting('privacy_text'),
         reward_criteria_text: getSetting('reward_criteria_text'),
-        reward_base_amount: getSetting('reward_base_amount'),
         reward_max_amount: getSetting('reward_max_amount'),
         daily_send_limit: getSetting('daily_send_limit'),
+        send_allowlist: scheduler.allowlist().map(formatPhone).join(', '),
         message_variant: templates.currentVariant(),
         min_photos: getSetting('min_photos'),
         max_photos: getSetting('max_photos'),
@@ -583,12 +580,14 @@ async function settingsSave(req, res, session) {
   const hour = Math.max(0, Math.min(23, Number(fields.send_hour_kst)));
   setSetting('send_hour_kst', Number.isFinite(hour) ? hour : 10);
   setSetting('test_phone', normalizePhone(fields.test_phone) || '');
-  const baseAmount = Math.max(0, Math.round(Number(fields.reward_base_amount) || 0));
-  const maxAmount = Math.max(baseAmount, Math.round(Number(fields.reward_max_amount) || 0));
-  setSetting('reward_base_amount', baseAmount);
-  setSetting('reward_max_amount', maxAmount);
+  setSetting('reward_max_amount', Math.max(0, Math.round(Number(fields.reward_max_amount) || 0)));
   setSetting('daily_send_limit', Math.max(0, Math.round(Number(fields.daily_send_limit) || 0)));
   setSetting('message_variant', templates.variantOf(fields.message_variant));
+  const allowed = String(fields.send_allowlist || '')
+    .split(/[,\s]+/)
+    .map((value) => normalizePhone(value))
+    .filter(Boolean);
+  setSetting('send_allowlist', allowed.join(','));
   audit(session, 'SETTINGS_UPDATE', null, null, http.clientIp(req));
   return http.redirect(res, flashUrl('/admin/settings', 'saved'));
 }
@@ -611,7 +610,6 @@ async function testSend(req, res, session) {
       '#{고객명}': '테스트',
       '#{토큰}': 'TEST-PREVIEW',
       '#{링크}': sampleUrl,
-      '#{기본리워드}': tiers.baseWords,
       '#{최대리워드}': tiers.maxWords,
     },
   });

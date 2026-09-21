@@ -104,6 +104,17 @@ const NAV = [
   ['/admin/settings', '설정'],
 ];
 
+/** 발송 허용 번호가 설정되어 있으면 모든 관리자 화면 상단에 표시한다 */
+function safetyBanner() {
+  const scheduler = require('../scheduler');
+  const allowed = scheduler.allowlist();
+  if (!allowed.length) return '';
+  return `<div class="flash err" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <span><b>테스트 모드</b> · 허용된 번호(${allowed.map((phone) => escapeHtml(formatPhone(phone))).join(', ')})로만 발송됩니다. 다른 고객에게는 한 건도 나가지 않습니다.</span>
+    <a href="/admin/settings" style="text-decoration:underline">설정에서 해제</a>
+  </div>`;
+}
+
 function layout({ title, active, session, content, flash }) {
   const nav = NAV.map(
     ([href, label]) =>
@@ -130,7 +141,7 @@ function layout({ title, active, session, content, flash }) {
     </form>
   </div>
 </div></div>
-<div class="wrap">${flashHtml}${content}</div>
+<div class="wrap">${safetyBanner()}${flashHtml}${content}</div>
 </body></html>`;
 }
 
@@ -367,13 +378,12 @@ function projectDetailPage({ project, customer, photos, messages, reward, reward
 
   const rewardStatus = reward ? reward.status : 'PENDING';
   const amountOptions = rewardTiers.presets
-    .map((amount) => {
-      const note =
-        amount === rewardTiers.base ? ' · 기본' : amount === rewardTiers.max ? ' · 시공사례 선정' : '';
-      return `<option value="${amount}" ${reward && reward.amount === amount ? 'selected' : ''}>${
-        amount === 0 ? '리워드 없음' : won(amount) + note
-      }</option>`;
-    })
+    .map(
+      (amount) =>
+        `<option value="${amount}" ${reward && reward.amount === amount ? 'selected' : ''}>${
+          amount === 0 ? '리워드 없음' : won(amount)
+        }</option>`
+    )
     .join('');
 
   const content = `
@@ -740,10 +750,9 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
       <div class="hint">고객에게 보이는 문구: <b>${escapeHtml(rewardTiers.headline)}</b></div>
     </div>
     <div class="row">
-      <div class="field" style="margin:0"><label>기본 리워드 (사진 등록 확인)</label>
-        <input type="number" name="reward_base_amount" min="0" step="1000" value="${escapeHtml(settings.reward_base_amount)}" style="width:150px"></div>
-      <div class="field" style="margin:0"><label>최대 리워드 (시공사례 선정)</label>
-        <input type="number" name="reward_max_amount" min="0" step="1000" value="${escapeHtml(settings.reward_max_amount)}" style="width:150px"></div>
+      <div class="field" style="margin:0"><label>최대 리워드 금액 (안내 문구용)</label>
+        <input type="number" name="reward_max_amount" min="0" step="1000" value="${escapeHtml(settings.reward_max_amount)}" style="width:150px">
+        <div class="hint">실제 지급액은 검수 후 0 / 1만 / 3만 / 5만원 중에서 정합니다.</div></div>
       <div class="field" style="margin:0"><label>메시지 문구 유형</label>
         <select name="message_variant">
           <option value="reward" ${settings.message_variant !== 'info' ? 'selected' : ''}>리워드 기준 명시 (등록률 우선)</option>
@@ -753,6 +762,12 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
       <div class="field" style="margin:0"><label>일일 발송 한도 (0=무제한)</label>
         <input type="number" name="daily_send_limit" min="0" max="10000" value="${escapeHtml(settings.daily_send_limit)}" style="width:150px">
         <div class="hint">소규모 오픈 시 하루 발송 건수를 제한합니다.</div></div>
+    </div>
+    <div class="row">
+      <div class="field" style="margin:0;flex:1"><label>발송 허용 번호 (쉼표로 구분 · 비우면 전체 발송)</label>
+        <input type="text" name="send_allowlist" value="${escapeHtml(settings.send_allowlist)}" placeholder="010-1234-5678, 010-2222-3333" style="width:100%;max-width:420px">
+        <div class="hint">값이 있으면 <b>그 번호에만</b> 발송됩니다. 실전 테스트 중에는 대표님 번호만 넣어 두세요.<br>
+          나머지 주문의 예약은 취소되지 않고 그대로 대기합니다.</div></div>
     </div>
     <div class="row">
       <div class="field" style="margin:0"><label>최소 사진 수</label><input type="number" name="min_photos" min="1" max="10" value="${escapeHtml(settings.min_photos)}" style="width:110px"></div>

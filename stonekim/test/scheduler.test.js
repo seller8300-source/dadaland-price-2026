@@ -183,8 +183,46 @@ test('일일 발송 한도를 넘으면 나머지는 예약 상태로 남는다 
   assert.equal([a, b].filter((id) => firstOf(id).status === 'SENT').length, 2);
 });
 
+test('발송 허용 번호가 있으면 그 번호에만 발송된다 (실전 테스트 안전장치)', async () => {
+  const { setSetting } = require('../src/db');
+  const mine = createProject({ order: 'SK121', shipDate: '2020-01-01', installDate: '2020-01-02' });
+  const other = createProject({ order: 'SK122', shipDate: '2020-01-01', installDate: '2020-01-02' });
+  scheduler.scheduleFirstMessage(mine);
+  scheduler.scheduleFirstMessage(other);
+
+  const myPhone = db
+    .prepare('SELECT c.phone FROM projects p JOIN customers c ON c.customer_id = p.customer_id WHERE p.project_id = ?')
+    .get(mine).phone;
+  setSetting('send_allowlist', myPhone);
+
+  await scheduler.processDue(new Date());
+
+  const firstOf = (id) => messagesOf(id).find((m) => m.message_type === 'FIRST');
+  assert.equal(firstOf(mine).status, 'SENT', '허용된 번호는 발송된다');
+  assert.equal(firstOf(other).status, 'SCHEDULED', '그 외 번호는 발송되지 않는다');
+  assert.equal(firstOf(other).sent_at, null);
+
+  // 관리자가 수동 발송해도 허용 목록 밖이면 막는다
+  const manual = await scheduler.sendNow(other, 'FIRST');
+  assert.equal(manual.ok, false);
+  assert.match(manual.error, /발송 허용 번호/);
+
+  // 허용 목록을 비우면 다시 발송된다 (예약은 그대로 살아 있다)
+  setSetting('send_allowlist', '');
+  await scheduler.processDue(new Date());
+  assert.equal(firstOf(other).status, 'SENT');
+});
+
 test('메시지 본문에 고유 업로드 링크가 포함된다', () => {
-  const body = require('../src/templates').buildBody('FIRST', 'http://test.local/project/upload/abc');
-  assert.match(body, /http:\/\/test\.local\/project\/upload\/abc/);
-  assert.match(body, /최대 5만원/);
+  const templates = require('../src/templates');
+  const reward = require('../src/reward');
+  const link = 'http://test.local/project/upload/abc';
+
+  const info = templates.buildBody('FIRST', link, reward.current(), 'info');
+  assert.match(info, /http:\/\/test\.local\/project\/upload\/abc/);
+  assert.doesNotMatch(info, /만원/, '정보성 문구에는 금액을 쓰지 않는다');
+
+  const withReward = templates.buildBody('FIRST', link, reward.current(), 'reward');
+  assert.match(withReward, /http:\/\/test\.local\/project\/upload\/abc/);
+  assert.match(withReward, /확인 후 최대 5만원/);
 });

@@ -121,10 +121,6 @@ ${header()}
 
   <div class="reward">
     <div class="rh">${escapeHtml(reward.headline)}</div>
-    <ul>
-      <li><span>사진 등록 확인</span><b>${escapeHtml(reward.baseWords)}</b></li>
-      <li><span>스톤킴 시공사례로 선정</span><b>최대 ${escapeHtml(reward.maxWords)}</b></li>
-    </ul>
     <div class="rc">${escapeHtml(reward.criteria)}</div>
   </div>
 

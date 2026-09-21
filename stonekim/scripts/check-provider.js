@@ -67,7 +67,6 @@ const messageType = ['FIRST', 'SECOND', 'FINAL'].includes(typeArg) ? typeArg : '
       '#{고객명}': '테스트',
       '#{토큰}': 'SAMPLE-TOKEN',
       '#{링크}': sampleUrl,
-      '#{기본리워드}': tiers.baseWords,
       '#{최대리워드}': tiers.maxWords,
     },
   });

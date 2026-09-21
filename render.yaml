@@ -1,0 +1,46 @@
+# Render 배포 설계도 (https://render.com)
+# 대시보드 > New > Blueprint 에서 이 저장소를 연결하면 아래 설정으로 서비스가 만들어진다.
+services:
+  - type: web
+    name: stonekim-photos
+    runtime: node
+    plan: starter # 영구 디스크를 쓰려면 유료 플랜이 필요하다 (free 플랜은 디스크 없음 + 자동 휴면)
+    region: singapore # 한국에서 가장 가까운 리전
+    rootDir: stonekim
+    buildCommand: "echo '외부 의존성 없음 — 빌드 단계 불필요'"
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: false # 실수로 배포되지 않도록 수동 배포로 둔다
+    disk:
+      name: stonekim-data # DB + 고객 사진 원본이 저장되는 영구 디스크
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: STONEKIM_DATA_DIR
+        value: /data
+      - key: STONEKIM_SECURE_COOKIE
+        value: "1"
+      - key: STONEKIM_BASE_URL
+        sync: false # 배포 후 실제 주소로 입력 (예: https://stonekim-photos.onrender.com)
+      - key: STONEKIM_ADMIN_USER
+        sync: false
+      - key: STONEKIM_ADMIN_PASSWORD
+        sync: false
+      - key: STONEKIM_MSG_PROVIDER
+        value: mock # 알림톡 템플릿 승인 후 solapi 로 변경
+      - key: STONEKIM_SOLAPI_API_KEY
+        sync: false
+      - key: STONEKIM_SOLAPI_API_SECRET
+        sync: false
+      - key: STONEKIM_KAKAO_PFID
+        sync: false
+      - key: STONEKIM_MSG_SENDER
+        sync: false
+      - key: STONEKIM_TPL_FIRST
+        sync: false
+      - key: STONEKIM_TPL_SECOND
+        sync: false
+      - key: STONEKIM_TPL_FINAL
+        sync: false

@@ -26,18 +26,13 @@ const BUTTON_LABEL = {
   MANUAL: '시공사진 등록하기',
 };
 
-function rewardLines(tiers) {
-  return [`· 사진 등록 확인 시 ${tiers.baseWords}`, `· 스톤킴 시공사례로 선정 시 최대 ${tiers.maxWords}`];
-}
-
 function first(url, tiers) {
   return [
     '안녕하세요, 스톤킴입니다 😊',
     '',
     '구매하신 스톤킴 제품의 시공은 잘 마무리되셨나요?',
     '',
-    '완성된 공간의 사진을 보내주시면 확인 후 리워드를 드립니다.',
-    ...rewardLines(tiers),
+    `완성된 공간의 사진을 보내주시면 사진 확인 후 최대 ${tiers.maxWords}의 시공사례 리워드를 드리고 있습니다.`,
     '',
     '전문 촬영이 아니어도 괜찮습니다.',
     '휴대폰으로 편하게 촬영해주세요.',
@@ -52,7 +47,7 @@ function second(url, tiers) {
     '',
     '혹시 시공이 완료되셨다면 완성된 공간을 자랑해주세요 😊',
     '',
-    ...rewardLines(tiers),
+    `스톤킴 시공사례로 선정되는 현장에는 최대 ${tiers.maxWords}의 리워드를 드립니다.`,
     '',
     '✓ 전문 촬영 필요 없음',
     '✓ 휴대폰 사진 가능',
@@ -68,8 +63,7 @@ function final(url, tiers) {
     '',
     '스톤킴 시공사진 리워드 마지막 안내드립니다.',
     '',
-    '시공이 완료된 현장의 사진을 등록해주시면 확인 후 리워드를 드립니다.',
-    ...rewardLines(tiers),
+    `시공이 완료된 현장의 사진을 등록해주시면 확인 후 최대 ${tiers.maxWords}의 리워드를 드립니다.`,
     '',
     '간단한 휴대폰 사진도 가능합니다.',
     '',
