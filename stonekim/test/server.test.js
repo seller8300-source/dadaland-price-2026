@@ -379,6 +379,34 @@ test('설정 저장: 리워드 금액·문구 유형·발송 한도', async () =
   });
 });
 
+test('환경변수로 지정한 관리자 비밀번호는 로그에 남기지 않는다', () => {
+  const { bootstrap } = require('../server');
+  const auth = require('../src/auth');
+  const { getDb } = require('../src/db');
+
+  // 계정을 지워 최초 기동 상황을 재현한다
+  const saved = getDb().prepare('SELECT * FROM admin_users WHERE username = ?').get('admin');
+  getDb().prepare('DELETE FROM admin_users WHERE username = ?').run('admin');
+
+  const lines = [];
+  const original = console.log;
+  console.log = (...args) => lines.push(args.join(' '));
+  try {
+    bootstrap();
+  } finally {
+    console.log = original;
+  }
+
+  const output = lines.join('\n');
+  assert.match(output, /최초 관리자 계정이 생성되었습니다/);
+  assert.doesNotMatch(output, /test-password-1234/, '지정한 비밀번호가 로그에 노출되면 안 된다');
+  assert.match(output, /환경변수 STONEKIM_ADMIN_PASSWORD/);
+
+  // 로그인은 여전히 환경변수 비밀번호로 가능해야 한다
+  assert.ok(auth.login('admin', 'test-password-1234', '127.0.0.1'));
+  assert.ok(saved, '기존 계정 정보가 있었다');
+});
+
 test('로그아웃하면 세션이 무효화된다', async () => {
   const { cookie, csrf } = await login();
   await fetch(`${base}/admin/logout`, {

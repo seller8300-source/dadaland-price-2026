@@ -50,7 +50,14 @@ function bootstrap() {
     console.log('─'.repeat(58));
     console.log(' 최초 관리자 계정이 생성되었습니다.');
     console.log(`   아이디   : ${created.username}`);
-    console.log(`   비밀번호 : ${created.password}${created.generated ? '  (임시 · 로그인 후 변경하세요)' : ''}`);
+    if (created.generated) {
+      // 임시 비밀번호는 알려줄 방법이 로그뿐이다. 로그는 나중에도 조회되므로 즉시 변경을 안내한다.
+      console.log(`   비밀번호 : ${created.password}   ← 임시`);
+      console.log('   ※ 이 값은 서버 로그에 남습니다. 로그인 후 설정 화면에서 반드시 변경하세요.');
+    } else {
+      // 운영자가 지정한 비밀번호는 로그에 남기지 않는다.
+      console.log('   비밀번호 : 환경변수 STONEKIM_ADMIN_PASSWORD 에 지정한 값');
+    }
     console.log('─'.repeat(58));
   }
   auth.purgeExpiredSessions();
