@@ -12,7 +12,7 @@ const { formatPhone } = require('../src/util');
 
 const FIELD_LABEL = {
   order_number: '주문번호', ship_date: '출고일', customer_name: '고객명', phone: '휴대폰번호',
-  product: '제품명', quantity: '수량', site_name: '현장명', region: '현장지역',
+  product: '제품명', quantity: '수량', amount: '금액', site_name: '현장명', region: '현장지역',
   installation_date: '시공예정일', sales_manager: '담당자',
 };
 const REQUIRED = ['order_number', 'ship_date', 'customer_name', 'phone'];
@@ -40,17 +40,28 @@ const { rows, summary, headerMap, missingColumns } = result;
 
 console.log(`\n■ 파일: ${path.basename(file)}`);
 console.log('\n■ 컬럼 인식 결과');
+const derivedShipDate = headerMap.ship_date === undefined && rows.some((row) => row.ship_date);
 for (const [field, label] of Object.entries(FIELD_LABEL)) {
   const index = headerMap[field];
-  const mark = index === undefined ? (REQUIRED.includes(field) ? '✗ 필수인데 못 찾음' : '· 없음(선택)') : `✓ ${index + 1}번째 열`;
+  let mark;
+  if (index !== undefined) mark = `✓ ${index + 1}번째 열`;
+  else if (field === 'ship_date' && derivedShipDate) mark = '✓ 주문번호에서 날짜 자동 추출';
+  else mark = REQUIRED.includes(field) ? '✗ 필수인데 못 찾음' : '· 없음(선택)';
   console.log(`  ${label.padEnd(8, ' ')} ${mark}`);
 }
-if (missingColumns.some((field) => REQUIRED.includes(field))) {
+const blocking = (result.missingRequired || []).filter((field) => !(field === 'ship_date' && derivedShipDate));
+if (blocking.length) {
+  console.log(`\n  ※ 발송에 꼭 필요한 항목이 없습니다: ${blocking.map((f) => FIELD_LABEL[f]).join(', ')}`);
+  console.log('     ERP 조회 화면에서 해당 열을 추가해 다시 내려받아 주세요.');
+} else if (missingColumns.some((field) => REQUIRED.includes(field))) {
   console.log('\n  ※ 필수 컬럼을 못 찾았습니다. 헤더 이름을 바꾸거나 src/import.js 의 HEADER_ALIASES 에 회사 표기를 추가하면 됩니다.');
 }
 
 console.log('\n■ 검증 요약');
-console.log(`  총 ${summary.total}건 / 정상 ${summary.valid}건 / 전화번호 오류 ${summary.bad_phone}건 / 중복 ${summary.duplicate}건 / 기타 오류 ${summary.other}건`);
+console.log(
+  `  총 ${summary.total}건 / 정상 ${summary.valid}건 / 전화번호 오류 ${summary.bad_phone}건 / ` +
+    `중복 ${summary.duplicate}건 / 취소(마이너스) ${summary.canceled || 0}건 / 기타 오류 ${summary.other}건`
+);
 console.log('  (이미 등록된 주문번호와의 중복은 실제 업로드 화면에서 한 번 더 확인합니다.)');
 
 const problems = rows.filter((row) => !row.valid || row.warnings.length).slice(0, 30);

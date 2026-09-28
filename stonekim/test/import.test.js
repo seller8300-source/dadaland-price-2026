@@ -120,6 +120,36 @@ test('예약 시각이 지난 건은 다음 발송창으로 미뤄 즉시 대량
   assert.equal(importer.clampSchedule(future, now), future, '미래 예약은 그대로');
 });
 
+test('이카운트 판매조회 출력물을 그대로 읽는다', () => {
+  const buffer = fs.readFileSync(path.join(__dirname, 'fixtures', 'ecount_sales.xlsx'));
+  const result = importer.parseUpload(buffer, 'ecount_sales.xlsx', { checkExisting: false });
+
+  assert.equal(result.headerRow, 2, '첫 줄 회사명 아래의 헤더를 찾는다');
+  assert.equal(result.summary.total, 3, '출력일시 꼬리 행은 건수에 포함하지 않는다');
+  assert.deepEqual(result.missingRequired, ['ship_date', 'phone']);
+
+  const [first] = result.rows;
+  assert.equal(first.order_number, '2026/09/28 -53');
+  assert.equal(first.ship_date, '2026-09-28', '판매번호 앞의 날짜를 출고일로 쓴다');
+  assert.equal(first.customer_name, '주식회사 가나건설');
+  assert.equal(first.sales_manager, '유송희');
+  assert.match(first.product, /S-K035/);
+
+  // 금액이 마이너스인 반품 건은 취소로 분류된다
+  assert.equal(result.summary.canceled, 1);
+  const canceledRow = result.rows.find((row) => row.canceled);
+  assert.equal(canceledRow.order_number, '2026/09/26 -7');
+
+  // 휴대폰번호 열이 없으면 이유를 명확히 알려준다
+  assert.ok(result.rows.every((row) => !row.valid));
+  assert.match(first.errors.find((e) => e.code === 'BAD_PHONE').text, /열 없음/);
+});
+
+test('주문번호에서 날짜를 꺼낸다', () => {
+  assert.equal(importer.dateFromOrderNumber('2026/10/14 -5'), '2026-10-14');
+  assert.equal(importer.dateFromOrderNumber('SK1001'), null);
+});
+
 test('ERP 에서 내려받은 표기도 인식한다 (이카운트 등)', () => {
   const map = importer.mapHeaders(['전표번호', '일자', '거래처명', '휴대폰번호', '품목명', '수량', '납품처', '담당자']);
   assert.equal(map.order_number, 0);

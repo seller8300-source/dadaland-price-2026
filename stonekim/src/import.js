@@ -8,16 +8,17 @@ const scheduler = require('./scheduler');
 
 /** 헤더 → 내부 필드 매핑 (표기 흔들림 흡수) */
 const HEADER_ALIASES = {
-  order_number: ['주문번호', '주문 번호', '주문no', '주문 no', '오더번호', '수주번호', '전표번호', '문서번호', '판매번호', 'order_number', 'orderno'],
+  order_number: ['주문번호', '주문 번호', '주문no', '주문 no', '오더번호', '수주번호', '전표번호', '문서번호', '판매번호', '판매No', 'order_number', 'orderno'],
   ship_date: ['출고일', '출고일자', '출고날짜', '납품일', '납품일자', '출하일', '판매일자', '전표일자', '일자', 'ship_date', 'shipdate'],
   customer_name: ['고객명', '고객', '성명', '이름', '수취인', '수령인', '거래처명', '거래처', 'customer', 'name'],
   phone: ['휴대폰번호', '휴대폰', '핸드폰', '연락처', '전화번호', '휴대전화', '수신번호', '고객연락처', '거래처연락처', 'phone', 'mobile'],
   product: ['제품명', '제품', '품명', '품목명', '품목', '상품명', 'product'],
   quantity: ['수량', '개수', '수량(ea)', 'qty', 'quantity'],
+  amount: ['금액', '금 액', '합계금액', '공급가액', '매출액', '판매금액', 'amount'],
   site_name: ['현장명', '현장', '납품현장', '납품처', '납품장소', 'site', 'site_name'],
   region: ['현장지역', '지역', '시공지역', '주소', '납품주소', 'region'],
   installation_date: ['시공예정일', '시공일', '시공예정', '설치예정일', '설치일', 'installation_date'],
-  sales_manager: ['담당자', '영업담당', '담당', '영업사원', '담당자명', 'manager', 'sales_manager'],
+  sales_manager: ['담당자', '영업담당', '담당', '영업사원', '담당자명', '사원(담당)명', '사원명', '담당사원', 'manager', 'sales_manager'],
 };
 
 const REQUIRED_FIELDS = ['order_number', 'ship_date', 'customer_name', 'phone'];
@@ -40,13 +41,27 @@ function mapHeaders(headerRow) {
   return map;
 }
 
-/** 헤더가 몇 번째 행인지 찾는다 (제목 행이 위에 있는 파일 대응) */
+/**
+ * 헤더가 몇 번째 행인지 찾는다.
+ * ERP 출력물은 첫 줄에 회사명·기간이 오고 그 아래에 헤더가 있는 경우가 많다.
+ * 휴대폰번호처럼 필수 열이 빠져 있어도 헤더로 인정하고, 무엇이 없는지는 결과에 담아 알려준다.
+ */
 function findHeaderRow(rows) {
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+  let best = { index: -1, map: {}, score: 0 };
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
     const map = mapHeaders(rows[i]);
-    if (map.order_number !== undefined && map.phone !== undefined) return { index: i, map };
+    const score = Object.keys(map).length;
+    const hasKey = map.order_number !== undefined || map.customer_name !== undefined;
+    if (hasKey && score >= 2 && score > best.score) best = { index: i, map, score };
   }
-  return { index: -1, map: {} };
+  return best;
+}
+
+/** '2026/10/14 -5' 처럼 전표번호 앞에 붙은 날짜를 꺼낸다 (출고일 열이 없는 ERP 출력 대응) */
+function dateFromOrderNumber(orderNumber) {
+  const match = String(orderNumber || '').match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (!match) return null;
+  return normalizeDate(`${match[1]}-${match[2]}-${match[3]}`);
 }
 
 /**
@@ -62,9 +77,10 @@ function parseUpload(buffer, fileName, options = {}) {
   const { index: headerIndex, map } = findHeaderRow(table);
   if (headerIndex < 0) {
     throw new Error(
-      '헤더를 찾을 수 없습니다. 첫 행에 주문번호 / 출고일 / 고객명 / 휴대폰번호 항목이 있어야 합니다.'
+      '헤더를 찾을 수 없습니다. 주문번호(판매번호) / 출고일 / 고객명(거래처) / 휴대폰번호 항목이 있어야 합니다.'
     );
   }
+  const missingRequired = REQUIRED_FIELDS.filter((field) => map[field] === undefined);
 
   const existsStmt = checkExisting
     ? getDb().prepare('SELECT project_id FROM projects WHERE order_number = ?')
@@ -74,7 +90,10 @@ function parseUpload(buffer, fileName, options = {}) {
 
   for (let i = headerIndex + 1; i < table.length; i++) {
     const raw = table[i];
-    if (!raw || raw.every((cell) => String(cell ?? '').trim() === '')) continue;
+    if (!raw) continue;
+    const filled = raw.filter((cell) => String(cell ?? '').trim() !== '').length;
+    // 빈 줄과 ERP 출력물 꼬리(출력일시 한 칸짜리 행)는 오류로 세지 않고 건너뛴다
+    if (filled < 2) continue;
 
     const pick = (field) => (map[field] === undefined ? '' : String(raw[map[field]] ?? '').trim());
     const record = {
@@ -87,12 +106,17 @@ function parseUpload(buffer, fileName, options = {}) {
       site_name: pick('site_name'),
       region: pick('region'),
       sales_manager: pick('sales_manager'),
+      amount_raw: pick('amount'),
     };
-    // ERP 판매내역에서 취소·반품은 수량이 마이너스로 잡힌다.
-    const quantityNumber = Number(String(record.quantity).replace(/[^0-9.-]/g, ''));
-    record.canceled = Number.isFinite(quantityNumber) && quantityNumber < 0;
+    // ERP 판매내역에서 취소·반품은 수량 또는 금액이 마이너스로 잡힌다.
+    const negative = (value) => {
+      const cleaned = String(value ?? '').replace(/[^0-9.-]/g, '');
+      const number = Number(cleaned);
+      return Number.isFinite(number) && cleaned !== '' && number < 0;
+    };
+    record.canceled = negative(record.quantity) || negative(record.amount_raw);
     record.phone = normalizePhone(record.phone_raw);
-    record.ship_date = normalizeDate(pick('ship_date'));
+    record.ship_date = normalizeDate(pick('ship_date')) || dateFromOrderNumber(record.order_number);
     const installRaw = pick('installation_date');
     record.installation_date = installRaw ? normalizeDate(installRaw) : null;
 
@@ -108,7 +132,12 @@ function parseUpload(buffer, fileName, options = {}) {
     }
     if (!record.order_number) errors.push({ code: 'NO_ORDER', text: '주문번호 없음' });
     if (!record.customer_name) errors.push({ code: 'NO_NAME', text: '고객명 없음' });
-    if (!record.phone) errors.push({ code: 'BAD_PHONE', text: '전화번호 오류' });
+    if (!record.phone) {
+      errors.push({
+        code: 'BAD_PHONE',
+        text: map.phone === undefined ? '휴대폰번호 열 없음' : '전화번호 오류',
+      });
+    }
     if (!record.ship_date) errors.push({ code: 'BAD_SHIP_DATE', text: '출고일 오류' });
     if (installRaw && !record.installation_date) {
       warnings.push({ code: 'BAD_INSTALL_DATE', text: '시공예정일 형식 오류 (미입력 처리)' });
@@ -131,7 +160,7 @@ function parseUpload(buffer, fileName, options = {}) {
 
   const summary = summarize(rows);
   const missingColumns = Object.keys(HEADER_ALIASES).filter((field) => map[field] === undefined);
-  return { rows, summary, headerMap: map, missingColumns };
+  return { rows, summary, headerMap: map, missingColumns, missingRequired, headerRow: headerIndex + 1 };
 }
 
 function summarize(rows) {
@@ -277,6 +306,7 @@ function discardBatch(batchId) {
 
 module.exports = {
   HEADER_ALIASES,
+  dateFromOrderNumber,
   REQUIRED_FIELDS,
   mapHeaders,
   findHeaderRow,
