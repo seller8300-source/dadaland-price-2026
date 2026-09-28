@@ -8,16 +8,16 @@ const scheduler = require('./scheduler');
 
 /** 헤더 → 내부 필드 매핑 (표기 흔들림 흡수) */
 const HEADER_ALIASES = {
-  order_number: ['주문번호', '주문 번호', '주문no', '주문 no', '오더번호', '수주번호', '전표번호', 'order_number', 'orderno'],
-  ship_date: ['출고일', '출고일자', '출고날짜', '납품일', '출하일', 'ship_date', 'shipdate'],
-  customer_name: ['고객명', '고객', '성명', '이름', '수취인', '거래처명', 'customer', 'name'],
-  phone: ['휴대폰번호', '휴대폰', '핸드폰', '연락처', '전화번호', '휴대전화', 'phone', 'mobile'],
-  product: ['제품명', '제품', '품명', '상품명', 'product'],
+  order_number: ['주문번호', '주문 번호', '주문no', '주문 no', '오더번호', '수주번호', '전표번호', '문서번호', '판매번호', 'order_number', 'orderno'],
+  ship_date: ['출고일', '출고일자', '출고날짜', '납품일', '납품일자', '출하일', '판매일자', '전표일자', '일자', 'ship_date', 'shipdate'],
+  customer_name: ['고객명', '고객', '성명', '이름', '수취인', '수령인', '거래처명', '거래처', 'customer', 'name'],
+  phone: ['휴대폰번호', '휴대폰', '핸드폰', '연락처', '전화번호', '휴대전화', '수신번호', '고객연락처', '거래처연락처', 'phone', 'mobile'],
+  product: ['제품명', '제품', '품명', '품목명', '품목', '상품명', 'product'],
   quantity: ['수량', '개수', '수량(ea)', 'qty', 'quantity'],
-  site_name: ['현장명', '현장', '납품현장', 'site', 'site_name'],
-  region: ['현장지역', '지역', '시공지역', '주소', 'region'],
+  site_name: ['현장명', '현장', '납품현장', '납품처', '납품장소', 'site', 'site_name'],
+  region: ['현장지역', '지역', '시공지역', '주소', '납품주소', 'region'],
   installation_date: ['시공예정일', '시공일', '시공예정', '설치예정일', '설치일', 'installation_date'],
-  sales_manager: ['담당자', '영업담당', '담당', '영업사원', 'manager', 'sales_manager'],
+  sales_manager: ['담당자', '영업담당', '담당', '영업사원', '담당자명', 'manager', 'sales_manager'],
 };
 
 const REQUIRED_FIELDS = ['order_number', 'ship_date', 'customer_name', 'phone'];

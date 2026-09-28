@@ -83,6 +83,17 @@ test('예약 시각이 지난 건은 다음 발송창으로 미뤄 즉시 대량
   assert.equal(importer.clampSchedule(future, now), future, '미래 예약은 그대로');
 });
 
+test('ERP 에서 내려받은 표기도 인식한다 (이카운트 등)', () => {
+  const map = importer.mapHeaders(['전표번호', '일자', '거래처명', '휴대폰번호', '품목명', '수량', '납품처', '담당자']);
+  assert.equal(map.order_number, 0);
+  assert.equal(map.ship_date, 1);
+  assert.equal(map.customer_name, 2);
+  assert.equal(map.phone, 3);
+  assert.equal(map.product, 4);
+  assert.equal(map.site_name, 6);
+  assert.equal(map.sales_manager, 7);
+});
+
 test('헤더 표기가 달라도 매핑된다', () => {
   const map = importer.mapHeaders(['주문 번호', '출고일자', '성명', '연락처', '품명', '시공일']);
   assert.equal(map.order_number, 0);
