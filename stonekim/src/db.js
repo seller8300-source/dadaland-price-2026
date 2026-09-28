@@ -158,6 +158,9 @@ const DEFAULT_SETTINGS = {
   min_photos: '3',
   max_photos: '10',
   send_hour_kst: '10',
+  // 자동 발송 단계 수: 1=1차만, 2=1·2차, 3=1·2·최종
+  // 승인된 알림톡 템플릿이 2개뿐이면 2로 두면 된다.
+  send_stages: '3',
 };
 
 let dbInstance = null;

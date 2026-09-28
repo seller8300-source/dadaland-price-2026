@@ -213,6 +213,39 @@ test('발송 허용 번호가 있으면 그 번호에만 발송된다 (실전 �
   assert.equal(firstOf(other).status, 'SENT');
 });
 
+test('발송 단계를 2단계로 두면 최종 메시지는 예약되지 않는다', async () => {
+  const { setSetting } = require('../src/db');
+  setSetting('send_stages', 2);
+  const id = createProject({ order: 'SK131', shipDate: '2020-01-01', installDate: '2020-01-02' });
+  scheduler.scheduleFirstMessage(id);
+
+  await scheduler.processDue(new Date());           // 1차 발송 → 2차 예약
+  let rows = messagesOf(id);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1].message_type, 'SECOND');
+
+  db.prepare('UPDATE messages SET scheduled_at = ? WHERE message_id = ?')
+    .run(new Date(Date.now() - 1000).toISOString(), rows[1].message_id);
+  await scheduler.processDue(new Date());           // 2차 발송 → 최종은 예약 안 됨
+  rows = messagesOf(id);
+  assert.equal(rows.length, 2, '최종 메시지가 예약되지 않아야 한다');
+  assert.equal(rows[1].status, 'SENT');
+
+  setSetting('send_stages', 3);
+});
+
+test('승인되지 않은 단계는 다른 단계의 템플릿 코드로 보내지 않는다', () => {
+  const templates = require('../src/templates');
+  const saved = { ...process.env };
+  process.env.STONEKIM_TPL_FIRST = 'KA01TP-FIRST';
+  delete process.env.STONEKIM_TPL_FINAL;
+
+  assert.equal(templates.templateCode('FIRST'), 'KA01TP-FIRST');
+  assert.equal(templates.templateCode('FINAL'), null, '승인 안 된 단계는 null (문자로 대체발송)');
+
+  process.env.STONEKIM_TPL_FIRST = saved.STONEKIM_TPL_FIRST;
+});
+
 test('메시지 본문에 고유 업로드 링크가 포함된다', () => {
   const templates = require('../src/templates');
   const reward = require('../src/reward');

@@ -548,6 +548,7 @@ function settingsPage(req, res, url, session) {
         reward_criteria_text: getSetting('reward_criteria_text'),
         reward_max_amount: getSetting('reward_max_amount'),
         daily_send_limit: getSetting('daily_send_limit'),
+        send_stages: String(scheduler.stageLimit()),
         send_allowlist: scheduler.allowlist().map(formatPhone).join(', '),
         message_variant: templates.currentVariant(),
         min_photos: getSetting('min_photos'),
@@ -583,6 +584,8 @@ async function settingsSave(req, res, session) {
   setSetting('reward_max_amount', Math.max(0, Math.round(Number(fields.reward_max_amount) || 0)));
   setSetting('daily_send_limit', Math.max(0, Math.round(Number(fields.daily_send_limit) || 0)));
   setSetting('message_variant', templates.variantOf(fields.message_variant));
+  const stages = Math.min(3, Math.max(1, Math.round(Number(fields.send_stages) || 3)));
+  setSetting('send_stages', stages);
   const allowed = String(fields.send_allowlist || '')
     .split(/[,\s]+/)
     .map((value) => normalizePhone(value))

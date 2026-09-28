@@ -145,13 +145,18 @@ function currentVariant() {
   return variantOf(getSetting('message_variant', 'reward'));
 }
 
+/**
+ * 단계별 승인 템플릿 코드.
+ * 승인되지 않은 단계를 다른 단계의 코드로 대신 보내면 본문 불일치로 카카오가 거부하므로
+ * 폴백하지 않고 null 을 돌려준다(그 경우 문자로 대체발송된다).
+ */
 function templateCode(messageType) {
   const env = {
     FIRST: process.env.STONEKIM_TPL_FIRST,
     SECOND: process.env.STONEKIM_TPL_SECOND,
     FINAL: process.env.STONEKIM_TPL_FINAL,
   };
-  return env[messageType] || env.FIRST || null;
+  return env[messageType] || null;
 }
 
 module.exports = { buildBody, templateCode, currentVariant, variantOf, VARIANTS, TYPE_LABEL, BUTTON_LABEL };

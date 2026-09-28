@@ -9,9 +9,24 @@ const { dateStringPlusDays, isoPlusDaysAtHour, nowIso, toDateString, normalizePh
 const NEXT_TYPE = { FIRST: 'SECOND', SECOND: 'FINAL', FINAL: null };
 const FOLLOWUP_DAYS = { SECOND: 7, FINAL: 14 };
 const SENT_STATUS = { FIRST: 'SENT_1', SECOND: 'SENT_2', FINAL: 'SENT_FINAL' };
+const STAGE_ORDER = { FIRST: 1, SECOND: 2, FINAL: 3 };
 
 /** 자동 발송이 더 이상 필요 없는 상태 */
 const STOP_STATUSES = new Set(['PHOTO_SUBMITTED']);
+
+/**
+ * 자동 발송 단계 수 (1~3).
+ * 알림톡 템플릿이 1·2차만 승인된 경우 2로 두면 최종 메시지를 예약하지 않는다.
+ */
+function stageLimit() {
+  const value = Number(getSetting('send_stages', '3'));
+  if (!Number.isFinite(value)) return 3;
+  return Math.min(3, Math.max(1, Math.round(value)));
+}
+
+function stageEnabled(messageType) {
+  return (STAGE_ORDER[messageType] || 1) <= stageLimit();
+}
 
 function sendHour() {
   const h = Number(getSetting('send_hour_kst', '10'));
@@ -112,6 +127,7 @@ function scheduleFirstMessage(projectId) {
 function scheduleFollowUp(projectId, prevType, prevSentAt) {
   const nextType = NEXT_TYPE[prevType];
   if (!nextType) return null;
+  if (!stageEnabled(nextType)) return null; // 설정한 단계까지만 자동 발송
   const project = getProject(projectId);
   if (!project || project.message_excluded || STOP_STATUSES.has(project.status)) return null;
   const at = computeFollowUpAt(nextType, prevSentAt, sendHour());
@@ -360,4 +376,7 @@ module.exports = {
   dailyLimit,
   allowlist,
   isAllowed,
+  stageLimit,
+  stageEnabled,
+  STAGE_ORDER,
 };

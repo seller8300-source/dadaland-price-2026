@@ -759,6 +759,13 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
           <option value="info" ${settings.message_variant === 'info' ? 'selected' : ''}>정보성 문구 (알림톡 심사 우선)</option>
         </select>
         <div class="hint">알림톡 템플릿이 광고성으로 반려되면 정보성으로 바꾸세요.<br>리워드 금액은 업로드 페이지에서 계속 안내됩니다.</div></div>
+      <div class="field" style="margin:0"><label>자동 발송 단계</label>
+        <select name="send_stages">
+          <option value="1" ${String(settings.send_stages) === '1' ? 'selected' : ''}>1차만 발송</option>
+          <option value="2" ${String(settings.send_stages) === '2' ? 'selected' : ''}>1차 + 2차</option>
+          <option value="3" ${String(settings.send_stages) === '3' ? 'selected' : ''}>1차 + 2차 + 최종</option>
+        </select>
+        <div class="hint">승인된 알림톡 템플릿 수에 맞춰 설정하세요.<br>승인 안 된 단계를 켜두면 문자로 대체발송됩니다.</div></div>
       <div class="field" style="margin:0"><label>일일 발송 한도 (0=무제한)</label>
         <input type="number" name="daily_send_limit" min="0" max="10000" value="${escapeHtml(settings.daily_send_limit)}" style="width:150px">
         <div class="hint">소규모 오픈 시 하루 발송 건수를 제한합니다.</div></div>
