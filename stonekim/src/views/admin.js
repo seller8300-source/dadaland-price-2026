@@ -681,12 +681,17 @@ function importPreviewPage({ batch, rows, summary, session, flash }) {
   <div class="tile"><div class="k">전화번호 오류</div><div class="v">${summary.bad_phone}</div></div>
   <div class="tile"><div class="k">중복 주문</div><div class="v">${summary.duplicate}</div></div>
 </div>
+${
+  summary.canceled
+    ? `<div class="flash info">취소(마이너스) 전표 ${summary.canceled}건이 있습니다. 등록하면 해당 주문의 자동 발송을 중단합니다.</div>`
+    : ''
+}
 ${summary.other ? `<div class="flash err">기타 오류 ${summary.other}건은 등록되지 않습니다.</div>` : ''}
 <div class="card">
   <form method="post" action="/admin/import/${batch.batch_id}/commit" class="row">
     <input type="hidden" name="csrf" value="${escapeHtml(session.csrf)}">
-    <button class="btn" type="submit" name="mode" value="schedule" ${summary.valid ? '' : 'disabled'}>${summary.valid}건 등록 · 자동발송 예약</button>
-    <button class="btn ghost" type="submit" name="mode" value="hold" ${summary.valid ? '' : 'disabled'}>${summary.valid}건 등록 · 발송 보류</button>
+    <button class="btn" type="submit" name="mode" value="schedule" ${summary.valid || summary.canceled ? '' : 'disabled'}>${summary.valid}건 등록 · 자동발송 예약</button>
+    <button class="btn ghost" type="submit" name="mode" value="hold" ${summary.valid || summary.canceled ? '' : 'disabled'}>${summary.valid}건 등록 · 발송 보류</button>
     <a class="btn quiet" href="/admin/import/${batch.batch_id}/discard">취소</a>
     <span class="small muted">예약 시각이 이미 지난 건은 즉시 발송되지 않고 다음 발송창으로 예약됩니다.</span>
   </form>

@@ -88,6 +88,9 @@ function parseUpload(buffer, fileName, options = {}) {
       region: pick('region'),
       sales_manager: pick('sales_manager'),
     };
+    // ERP 판매내역에서 취소·반품은 수량이 마이너스로 잡힌다.
+    const quantityNumber = Number(String(record.quantity).replace(/[^0-9.-]/g, ''));
+    record.canceled = Number.isFinite(quantityNumber) && quantityNumber < 0;
     record.phone = normalizePhone(record.phone_raw);
     record.ship_date = normalizeDate(pick('ship_date'));
     const installRaw = pick('installation_date');
@@ -95,6 +98,14 @@ function parseUpload(buffer, fileName, options = {}) {
 
     const errors = [];
     const warnings = [];
+    if (record.canceled) {
+      // 취소 전표는 등록 대상이 아니라 '발송 제외' 대상이다.
+      record.errors = [{ code: 'CANCELED', text: '취소(마이너스) 전표 · 발송 제외 처리' }];
+      record.warnings = [];
+      record.valid = false;
+      rows.push(record);
+      continue;
+    }
     if (!record.order_number) errors.push({ code: 'NO_ORDER', text: '주문번호 없음' });
     if (!record.customer_name) errors.push({ code: 'NO_NAME', text: '고객명 없음' });
     if (!record.phone) errors.push({ code: 'BAD_PHONE', text: '전화번호 오류' });
@@ -124,9 +135,10 @@ function parseUpload(buffer, fileName, options = {}) {
 }
 
 function summarize(rows) {
-  const counts = { total: rows.length, valid: 0, bad_phone: 0, duplicate: 0, other: 0, warning: 0 };
+  const counts = { total: rows.length, valid: 0, bad_phone: 0, duplicate: 0, canceled: 0, other: 0, warning: 0 };
   for (const row of rows) {
     if (row.valid) counts.valid++;
+    else if (row.canceled) counts.canceled++;
     else if (row.errors.some((e) => e.code === 'BAD_PHONE')) counts.bad_phone++;
     else if (row.errors.some((e) => e.code === 'DUP_FILE' || e.code === 'DUP_DB')) counts.duplicate++;
     else counts.other++;
@@ -191,7 +203,7 @@ function commitBatch(batchId, options = {}) {
   if (batch.status === 'COMMITTED') return { ok: false, error: '이미 등록된 업로드입니다.' };
 
   const now = new Date();
-  const result = { created: 0, skipped: 0, scheduled: 0, deferred: 0, errors: [] };
+  const result = { created: 0, skipped: 0, scheduled: 0, deferred: 0, canceled: 0, cancel_unmatched: 0, errors: [] };
   const insertProject = db.prepare(
     `INSERT INTO projects
       (order_number, customer_id, product, quantity, ship_date, installation_date,
@@ -203,6 +215,22 @@ function commitBatch(batchId, options = {}) {
   db.exec('BEGIN');
   try {
     for (const row of batch.rows) {
+      // 취소 전표: 같은 주문번호가 이미 등록돼 있으면 자동 발송을 막는다.
+      if (row.canceled) {
+        const existing = row.order_number
+          ? db.prepare('SELECT project_id FROM projects WHERE order_number = ?').get(row.order_number)
+          : null;
+        if (existing) {
+          db.prepare(
+            "UPDATE projects SET message_excluded = 1, excluded_reason = 'ERP 취소 전표', updated_at = ? WHERE project_id = ?"
+          ).run(nowIso(), existing.project_id);
+          scheduler.cancelScheduled(existing.project_id, 'CANCELED_ADMIN', 'ERP 취소 전표');
+          result.canceled++;
+        } else {
+          result.cancel_unmatched++;
+        }
+        continue;
+      }
       if (!row.valid) { result.skipped++; continue; }
       if (db.prepare('SELECT 1 AS x FROM projects WHERE order_number = ?').get(row.order_number)) {
         result.skipped++;

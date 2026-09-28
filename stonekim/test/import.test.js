@@ -73,6 +73,43 @@ test('이미 등록된 배치는 다시 커밋되지 않는다', () => {
   assert.equal(again.ok, false);
 });
 
+test('취소(마이너스) 전표는 등록하지 않고, 기존 주문의 자동 발송을 중단한다', () => {
+  const db = getDb();
+  const { getDb: _ } = require('../src/db');
+
+  // 정상 1건 등록
+  const normal =
+    '주문번호,출고일,고객명,휴대폰번호,제품명,수량\n' +
+    'SK7001,2026-09-10,정상고객,010-3333-1111,칼라카타,3\n';
+  const first = importer.parseUpload(Buffer.from(normal, 'utf8'), 'a.csv');
+  const batch1 = importer.saveBatch({ fileName: 'a.csv', rows: first.rows, summary: first.summary });
+  importer.commitBatch(batch1);
+  const project = db.prepare("SELECT * FROM projects WHERE order_number = 'SK7001'").get();
+  assert.equal(project.message_excluded, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS c FROM messages WHERE project_id = ? AND status='SCHEDULED'").get(project.project_id).c, 1);
+
+  // 같은 주문번호의 취소 전표 + 원 주문이 없는 취소 전표
+  const canceled =
+    '주문번호,출고일,고객명,휴대폰번호,제품명,수량\n' +
+    'SK7001,2026-09-12,정상고객,010-3333-1111,칼라카타,-3\n' +
+    'SK7009,2026-09-12,모르는고객,010-3333-2222,비앙코,-1\n';
+  const second = importer.parseUpload(Buffer.from(canceled, 'utf8'), 'b.csv');
+  assert.equal(second.summary.canceled, 2, '취소 건은 따로 집계된다');
+  assert.equal(second.summary.valid, 0, '취소 건은 등록 대상이 아니다');
+
+  const batch2 = importer.saveBatch({ fileName: 'b.csv', rows: second.rows, summary: second.summary });
+  const result = importer.commitBatch(batch2);
+  assert.equal(result.canceled, 1, '원 주문을 찾은 취소 건만 처리된다');
+  assert.equal(result.cancel_unmatched, 1);
+  assert.equal(result.created, 0, '취소 전표로 새 주문이 생기지 않는다');
+
+  const after = db.prepare("SELECT * FROM projects WHERE order_number = 'SK7001'").get();
+  assert.equal(after.message_excluded, 1, '자동 발송 제외로 전환');
+  assert.equal(after.excluded_reason, 'ERP 취소 전표');
+  assert.equal(db.prepare("SELECT COUNT(*) AS c FROM messages WHERE project_id = ? AND status='SCHEDULED'").get(project.project_id).c, 0, '예약 메시지가 중단된다');
+  assert.equal(db.prepare("SELECT COUNT(*) AS c FROM projects WHERE order_number = 'SK7009'").get().c, 0);
+});
+
 test('예약 시각이 지난 건은 다음 발송창으로 미뤄 즉시 대량발송을 막는다', () => {
   const now = new Date('2026-09-21T12:00:00+09:00');
   const past = '2026-09-01T01:00:00.000Z';

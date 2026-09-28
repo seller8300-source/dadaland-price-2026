@@ -35,6 +35,10 @@ const FLASH = {
     'ok',
     `${created || 0}건을 등록했습니다. (자동발송 예약 ${scheduled || 0}건)`,
   ],
+  imported_with_cancel: (created, canceled) => [
+    'ok',
+    `${created || 0}건을 등록하고, 취소 전표 ${canceled || 0}건은 자동 발송을 중단했습니다.`,
+  ],
   import_hold: (created) => ['ok', `${created || 0}건을 등록했습니다. 자동발송은 보류 상태입니다.`],
   import_error: () => ['err', '엑셀 파일을 읽을 수 없습니다. 형식을 확인해 주세요.'],
   discarded: () => ['info', '업로드를 취소했습니다.'],
@@ -514,9 +518,11 @@ async function importCommit(req, res, session, batchId) {
   const result = importer.commitBatch(batchId, { hold });
   if (!result.ok) return http.redirect(res, flashUrl('/admin/import', 'import_error'));
   audit(session, 'IMPORT_COMMIT', batchId, `${result.created}건 / 예약 ${result.scheduled}`, http.clientIp(req));
-  return hold
-    ? http.redirect(res, flashUrl('/admin/projects', 'import_hold', result.created))
-    : http.redirect(res, flashUrl('/admin/projects', 'imported', result.created, result.scheduled));
+  if (hold) return http.redirect(res, flashUrl('/admin/projects', 'import_hold', result.created));
+  if (result.canceled) {
+    return http.redirect(res, flashUrl('/admin/projects', 'imported_with_cancel', result.created, result.canceled));
+  }
+  return http.redirect(res, flashUrl('/admin/projects', 'imported', result.created, result.scheduled));
 }
 
 function importDiscard(req, res, session, batchId) {
