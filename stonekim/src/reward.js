@@ -9,11 +9,11 @@ const { getSetting } = require('./db');
 
 const PRESET_AMOUNTS = [0, 10000, 30000, 50000, 100000];
 
-const DEFAULT_HEADLINE = '사진 등록만 하셔도 신세계상품권 3만원';
+const DEFAULT_HEADLINE = '사진 등록만 하셔도 신세계상품권 3만원 🎁';
 const DEFAULT_BENEFITS = [
-  '등록 고객 100% 신세계상품권 3만원',
-  '매월 BEST 선정 시 10만원 추가 지급',
-  '우수 시공사례는 스톤킴 공식 채널 게시',
+  '💳 등록 고객 100% 신세계상품권 3만원',
+  '🏆 매월 BEST 선정 시 10만원 추가 지급',
+  '📢 우수 시공사례는 스톤킴 공식 채널 게시',
 ].join('\n');
 const DEFAULT_CRITERIA =
   '완공된 현장이 잘 보이는 사진 3장 이상을 등록해주세요. ' +

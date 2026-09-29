@@ -145,11 +145,11 @@ const DEFAULT_SETTINGS = {
   privacy_text:
     '리워드 지급 및 사진 활용 안내를 위해 주문정보(성함·연락처)를 이용하며, 목적 달성 후 파기합니다. 자세한 내용은 스톤킴 개인정보처리방침을 따릅니다.',
   // 고객 화면·문자 대체발송에 쓰이는 리워드 안내. 승인된 알림톡 내용과 맞춘다.
-  reward_headline: '사진 등록만 하셔도 신세계상품권 3만원',
+  reward_headline: '사진 등록만 하셔도 신세계상품권 3만원 🎁',
   reward_benefits:
-    '등록 고객 100% 신세계상품권 3만원\n' +
-    '매월 BEST 선정 시 10만원 추가 지급\n' +
-    '우수 시공사례는 스톤킴 공식 채널 게시',
+    '💳 등록 고객 100% 신세계상품권 3만원\n' +
+    '🏆 매월 BEST 선정 시 10만원 추가 지급\n' +
+    '📢 우수 시공사례는 스톤킴 공식 채널 게시',
   reward_criteria_text:
     '완공된 현장이 잘 보이는 사진 3장 이상을 등록해주세요. ' +
     '확인 후 등록하신 연락처로 지급 안내를 드립니다.',
@@ -170,6 +170,33 @@ const DEFAULT_SETTINGS = {
   send_stages: '3',
 };
 
+/**
+ * 예전 기본 문구를 그대로 쓰고 있던 설정만 현재 기본값으로 올려준다.
+ * 관리자가 직접 고친 문구는 건드리지 않는다.
+ */
+const LEGACY_DEFAULTS = {
+  reward_headline: ['사진 등록만 하셔도 신세계상품권 3만원'],
+  reward_benefits: [
+    '등록 고객 100% 신세계상품권 3만원\n매월 BEST 선정 시 10만원 추가 지급\n우수 시공사례는 스톤킴 공식 채널 게시',
+  ],
+  reward_criteria_text: [
+    '등록해주신 사진을 확인한 뒤 리워드 대상 여부와 금액을 개별 안내드립니다. 완공된 현장 전체가 잘 보이는 사진일수록 시공사례로 선정될 가능성이 높습니다.',
+    '사진 3장 이상을 등록해주시면 확인 후 기본 리워드를 드립니다. 완공된 현장이 잘 보이는 사진은 시공사례로 선정되어 추가 리워드를 드립니다. 지급까지는 영업일 기준 7일 정도 걸립니다.',
+  ],
+};
+
+function upgradeLegacySettings(db) {
+  const now = new Date().toISOString();
+  const read = db.prepare('SELECT value FROM settings WHERE key = ?');
+  const write = db.prepare('UPDATE settings SET value = ?, updated_at = ? WHERE key = ?');
+  for (const [key, oldValues] of Object.entries(LEGACY_DEFAULTS)) {
+    const row = read.get(key);
+    if (row && oldValues.includes(row.value) && DEFAULT_SETTINGS[key] !== row.value) {
+      write.run(DEFAULT_SETTINGS[key], now, key);
+    }
+  }
+}
+
 let dbInstance = null;
 
 function getDb() {
@@ -180,6 +207,7 @@ function getDb() {
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(SCHEMA);
   seedSettings(db);
+  upgradeLegacySettings(db);
   dbInstance = db;
   return db;
 }

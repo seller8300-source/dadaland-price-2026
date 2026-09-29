@@ -6,7 +6,8 @@ const BASE_CSS = `
 :root{--brand:#FC5400;--brand-dark:#D94500;--brand-tint:#FFF2EB;
   --ink:#141414;--muted:#6E7276;--line:#E6E6E4;--bg:#FFFFFF;--soft:#F5F5F3;--dark:#0C0C0C;--warn:#C0392B}
 html,body{background:var(--soft)}
-body{font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+body{font-family:"Wanted Sans Variable","Wanted Sans","Pretendard Variable",Pretendard,
+  -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Tossface",sans-serif;
   color:var(--ink);line-height:1.6;-webkit-text-size-adjust:100%;word-break:keep-all;
   letter-spacing:-.015em;font-feature-settings:"ss01"}
 .wrap{max-width:560px;margin:0 auto;background:var(--bg);min-height:100vh}
@@ -90,7 +91,10 @@ function shell({ title, body, head = '' }) {
 <meta name="robots" content="noindex, nofollow">
 <meta name="format-detection" content="telephone=no">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://static.toss.im" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.3/packages/wanted-sans/fonts/webfonts/variable/complete/WantedSansVariable.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="https://static.toss.im/tps/main.css">
 <title>${escapeHtml(title)}</title>
 <style>${BASE_CSS}</style>
 ${head}
@@ -134,7 +138,7 @@ function uploadPage({ project, customer, consentText, privacyText, reward, logoU
   const body = `
 ${header('시공사진 등록', logoUrl)}
 <main>
-  <div class="lead">완성된 현장을 보여주세요.</div>
+  <div class="lead">완성된 현장을 보여주세요 📷</div>
   <div class="sub">${escapeHtml(customer.name)} 고객님, 사진 3장이면 1분 안에 끝납니다.</div>
 
   <div class="reward">
@@ -144,27 +148,27 @@ ${header('시공사진 등록', logoUrl)}
   </div>
 
   <div class="card">
-    <h2>주문내역</h2>
+    <h2>🧾 주문내역</h2>
     ${orderRows}
   </div>
 
   <form id="f" method="post" action="" enctype="multipart/form-data">
-    <div class="section-title">사진 등록 <span class="count" id="cnt">0 / ${maxPhotos}장</span></div>
+    <div class="section-title">📸 사진 등록 <span class="count" id="cnt">0 / ${maxPhotos}장</span></div>
     <label class="picker" for="files" id="picker">
       <div class="plus">＋</div>
-      <div class="label">사진 추가</div>
+      <div class="label">사진 추가하기</div>
       <div class="hint">최소 ${minPhotos}장 · 최대 ${maxPhotos}장 (여러 장 선택 가능)</div>
     </label>
     <input type="file" id="files" name="photos" accept="image/*,.heic,.heif" multiple style="display:none">
     <div class="thumbs" id="thumbs"></div>
 
     <div class="card guide" style="margin-top:18px">
-      <h2>사진 촬영 가이드</h2>
+      <h2>💡 이렇게 찍어주세요</h2>
       <ol>${GUIDE_SHOTS.map((shot) => `<li>${escapeHtml(shot)}</li>`).join('')}</ol>
       <div class="privacy" style="margin-top:6px">전문적으로 촬영하지 않으셔도 됩니다.<br>공간 전체가 잘 보이도록 촬영해주세요.</div>
     </div>
 
-    <div class="section-title">추가 정보</div>
+    <div class="section-title">✍️ 추가 정보 <span class="count">선택</span></div>
     <div class="field">
       <label class="f" for="region">현장지역</label>
       <input type="text" id="region" name="region" value="${escapeHtml(project.region || '')}" placeholder="예) 서울 강남구" inputmode="text">
@@ -190,7 +194,7 @@ ${header('시공사진 등록', logoUrl)}
 
     <div class="err${error ? ' on' : ''}" id="err">${escapeHtml(error || '')}</div>
     <div class="progress" id="prog"><i></i></div>
-    <button type="submit" class="submit" id="go">사진 등록 완료</button>
+    <button type="submit" class="submit" id="go">📸 사진 등록하고 상품권 받기</button>
   </form>
 </main>
 <div class="footer">
@@ -286,11 +290,11 @@ function uploadScript(minPhotos, maxPhotos) {
       bar.style.width='100%';
       var res={}; try{ res=JSON.parse(xhr.responseText); }catch(e){}
       if(xhr.status>=200 && xhr.status<300 && res.ok){ location.href=res.redirect || (location.pathname+'/done'); return; }
-      go.disabled=false; go.textContent='사진 등록 완료'; prog.classList.remove('on'); bar.style.width='0';
+      go.disabled=false; go.textContent='📸 사진 등록하고 상품권 받기'; prog.classList.remove('on'); bar.style.width='0';
       showErr(res.error || '등록에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     };
     xhr.onerror=function(){
-      go.disabled=false; go.textContent='사진 등록 완료'; prog.classList.remove('on'); bar.style.width='0';
+      go.disabled=false; go.textContent='📸 사진 등록하고 상품권 받기'; prog.classList.remove('on'); bar.style.width='0';
       showErr('네트워크 오류가 발생했습니다. 통신 상태를 확인하고 다시 시도해 주세요.');
     };
     xhr.send(fd);
@@ -303,7 +307,7 @@ function donePage({ photoCount, reward, logoUrl }) {
   const body = `
 ${header('시공사진 등록', logoUrl)}
 <div class="done">
-  <div class="mark">✓</div>
+  <div class="mark">🎉</div>
   <h1>사진이 정상적으로 등록되었습니다.</h1>
   <p>소중한 시공사진 감사합니다.<br>확인 후 등록하신 연락처로 지급 안내를 드리겠습니다.</p>
   ${photoCount ? `<p style="margin-top:18px;font-size:13px">등록된 사진 ${photoCount}장</p>` : ''}
