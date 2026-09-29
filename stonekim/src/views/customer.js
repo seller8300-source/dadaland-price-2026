@@ -6,37 +6,38 @@ const BASE_CSS = `
 :root{--brand:#FC5400;--brand-dark:#D94500;--brand-tint:#FFF2EB;
   --ink:#141414;--muted:#6E7276;--line:#E6E6E4;--bg:#FFFFFF;--soft:#F5F5F3;--dark:#0C0C0C;--warn:#C0392B}
 html,body{background:var(--soft)}
-body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
-  color:var(--ink);line-height:1.6;-webkit-text-size-adjust:100%;word-break:keep-all}
+body{font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  color:var(--ink);line-height:1.6;-webkit-text-size-adjust:100%;word-break:keep-all;
+  letter-spacing:-.015em;font-feature-settings:"ss01"}
 .wrap{max-width:560px;margin:0 auto;background:var(--bg);min-height:100vh}
 header{background:var(--dark);padding:22px 20px 20px;border-bottom:3px solid var(--brand)}
 header img.logo{height:30px;display:block}
-.brand{font-size:19px;font-weight:800;letter-spacing:.14em;color:var(--brand);font-style:italic}
-.page-title{margin-top:9px;font-size:17px;font-weight:600;color:#fff}
+.brand{font-size:20px;font-weight:900;letter-spacing:.1em;color:var(--brand);font-style:italic}
+.page-title{margin-top:9px;font-size:18px;font-weight:700;color:#fff;letter-spacing:-.02em}
 .page-title span{color:var(--brand)}
 main{padding:22px 20px 40px}
-.lead{font-size:17px;line-height:1.6;margin-bottom:6px;font-weight:700}
+.lead{font-size:20px;line-height:1.45;margin-bottom:7px;font-weight:800;letter-spacing:-.03em}
 .sub{font-size:13.5px;color:var(--muted);margin-bottom:20px}
 .card{border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px;background:#fff}
 .card h2{font-size:14px;font-weight:700;margin-bottom:10px}
 .reward{background:var(--dark);border-radius:14px;padding:18px 17px;margin-bottom:20px;color:#fff}
-.reward .rh{font-size:17px;font-weight:800;line-height:1.45;color:#fff}
+.reward .rh{font-size:19px;font-weight:800;line-height:1.4;color:#fff;letter-spacing:-.035em}
 .reward .rh b{color:var(--brand)}
 .reward ul{list-style:none;margin-top:14px}
-.reward li{display:flex;gap:9px;font-size:14px;padding:6px 0;color:#F0F0EE;line-height:1.5}
+.reward li{display:flex;gap:9px;font-size:14.5px;padding:6px 0;color:#F2F2F0;line-height:1.5;font-weight:500}
 .reward li i{flex:0 0 20px;height:20px;border-radius:50%;background:var(--brand);color:#fff;font-style:normal;
   font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}
 .reward .rc{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.16);
   font-size:12px;color:#A8ACAE;line-height:1.7}
 .order-row{display:flex;justify-content:space-between;font-size:13.5px;padding:5px 0;color:var(--muted)}
 .order-row span:last-child{color:var(--ink);text-align:right;max-width:62%;font-weight:500}
-.section-title{font-size:15px;font-weight:700;margin:26px 0 10px;display:flex;justify-content:space-between;align-items:baseline}
+.section-title{font-size:16px;font-weight:800;letter-spacing:-.03em;margin:26px 0 10px;display:flex;justify-content:space-between;align-items:baseline}
 .count{font-size:12.5px;color:var(--brand);font-weight:700}
 .picker{display:block;border:1.5px dashed #D6C3B7;border-radius:12px;padding:26px 16px;text-align:center;
   background:var(--brand-tint);cursor:pointer}
 .picker:active{background:#FFE6D8}
 .picker .plus{font-size:28px;line-height:1;color:var(--brand)}
-.picker .label{margin-top:8px;font-size:15px;font-weight:700}
+.picker .label{margin-top:8px;font-size:15.5px;font-weight:800;letter-spacing:-.02em}
 .picker .hint{margin-top:4px;font-size:12.5px;color:var(--muted)}
 .thumbs:empty{display:none}
 .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
@@ -60,7 +61,8 @@ textarea{min-height:88px;resize:vertical;line-height:1.6}
 .consent input{margin-top:3px;width:18px;height:18px;flex:0 0 18px;accent-color:var(--brand)}
 .privacy{margin-top:10px;font-size:11.5px;color:var(--muted);line-height:1.7}
 .submit{width:100%;margin-top:22px;padding:18px;border:0;border-radius:10px;background:var(--brand);color:#fff;
-  font-family:inherit;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(252,84,0,.28)}
+  font-family:inherit;font-size:17.5px;font-weight:800;letter-spacing:-.02em;cursor:pointer;
+  box-shadow:0 4px 14px rgba(252,84,0,.28)}
 .submit:active{background:var(--brand-dark)}
 .submit:disabled{opacity:.45;box-shadow:none}
 .err{margin-top:14px;padding:12px;border-radius:8px;background:#FDECEA;color:var(--warn);font-size:13px;display:none}
@@ -72,7 +74,7 @@ textarea{min-height:88px;resize:vertical;line-height:1.6}
 .done{padding:60px 22px;text-align:center}
 .done .mark{width:66px;height:66px;border-radius:50%;background:var(--brand);color:#fff;font-size:30px;
   display:flex;align-items:center;justify-content:center;margin:0 auto 22px;box-shadow:0 6px 18px rgba(252,84,0,.3)}
-.done h1{font-size:20px;font-weight:700;margin-bottom:12px}
+.done h1{font-size:21px;font-weight:800;letter-spacing:-.035em;margin-bottom:12px}
 .done p{font-size:14.5px;color:var(--muted);line-height:1.85}
 .notice{padding:56px 22px;text-align:center}
 .notice h1{font-size:18px;font-weight:700;margin-bottom:10px}
@@ -87,6 +89,8 @@ function shell({ title, body, head = '' }) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="format-detection" content="telephone=no">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
 <title>${escapeHtml(title)}</title>
 <style>${BASE_CSS}</style>
 ${head}
