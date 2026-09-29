@@ -9,7 +9,7 @@ const { getSetting } = require('./db');
 
 const PRESET_AMOUNTS = [0, 10000, 30000, 50000, 100000];
 
-const DEFAULT_HEADLINE = '사진 등록만 하셔도 신세계상품권 3만원 🎁';
+const DEFAULT_HEADLINE = '사진만 등록하셔도\n신세계상품권 3만원을 드려요 🎁';
 const DEFAULT_BENEFITS = [
   '💳 등록 고객 100% 신세계상품권 3만원',
   '🏆 매월 BEST 선정 시 10만원 추가 지급',

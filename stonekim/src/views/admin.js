@@ -751,7 +751,8 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
     </div>
     <div class="field">
       <label>리워드 제목 (고객 화면 상단 굵은 문구)</label>
-      <input type="text" name="reward_headline" value="${escapeHtml(settings.reward_headline)}" style="width:100%;max-width:520px">
+      <textarea name="reward_headline" style="min-height:60px">${escapeHtml(settings.reward_headline)}</textarea>
+      <div class="hint">줄을 바꾸면 고객 화면에서도 그대로 줄이 바뀝니다.</div>
     </div>
     <div class="field">
       <label>혜택 목록 (한 줄에 하나씩)</label>

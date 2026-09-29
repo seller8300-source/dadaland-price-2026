@@ -142,7 +142,7 @@ ${header('시공사진 등록', logoUrl)}
   <div class="sub">${escapeHtml(customer.name)} 고객님, 사진 3장이면 1분 안에 끝납니다.</div>
 
   <div class="reward">
-    <div class="rh">${escapeHtml(reward.headline)}</div>
+    <div class="rh">${escapeHtml(reward.headline).replace(/\n/g, '<br>')}</div>
     ${benefitList ? `<ul>${benefitList}</ul>` : ''}
     <div class="rc">${escapeHtml(reward.criteria)}</div>
   </div>
@@ -314,7 +314,7 @@ ${header('시공사진 등록', logoUrl)}
   ${
     reward
       ? `<div class="reward" style="text-align:left;margin:26px 20px 0">
-           <div class="rh" style="font-size:15px">${escapeHtml(reward.headline)}</div>
+           <div class="rh" style="font-size:15px">${escapeHtml(reward.headline).replace(/\n/g, '<br>')}</div>
            <div class="rc" style="border:0;padding-top:8px;margin-top:6px">${escapeHtml(reward.criteria)}</div>
          </div>`
       : ''
