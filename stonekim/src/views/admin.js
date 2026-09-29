@@ -750,14 +750,23 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
       <textarea name="privacy_text">${escapeHtml(settings.privacy_text)}</textarea>
     </div>
     <div class="field">
-      <label>리워드 기준 안내 문구 (고객 화면·완료 화면)</label>
+      <label>리워드 제목 (고객 화면 상단 굵은 문구)</label>
+      <input type="text" name="reward_headline" value="${escapeHtml(settings.reward_headline)}" style="width:100%;max-width:520px">
+    </div>
+    <div class="field">
+      <label>혜택 목록 (한 줄에 하나씩)</label>
+      <textarea name="reward_benefits">${escapeHtml(settings.reward_benefits)}</textarea>
+      <div class="hint">승인된 알림톡 내용과 같게 맞추세요. 화면과 메시지가 다르면 고객 불만이 생깁니다.</div>
+    </div>
+    <div class="field">
+      <label>지급 기준 안내 (작은 글씨)</label>
       <textarea name="reward_criteria_text">${escapeHtml(settings.reward_criteria_text)}</textarea>
-      <div class="hint">고객에게 보이는 문구: <b>${escapeHtml(rewardTiers.headline)}</b></div>
+    </div>
+    <div class="field">
+      <label>로고 이미지 주소 (비우면 STONE KIM 글자 로고)</label>
+      <input type="text" name="brand_logo_url" value="${escapeHtml(settings.brand_logo_url)}" placeholder="https://stonekim.kr/logo.png" style="width:100%;max-width:520px">
     </div>
     <div class="row">
-      <div class="field" style="margin:0"><label>최대 리워드 금액 (안내 문구용)</label>
-        <input type="number" name="reward_max_amount" min="0" step="1000" value="${escapeHtml(settings.reward_max_amount)}" style="width:150px">
-        <div class="hint">실제 지급액은 검수 후 0 / 1만 / 3만 / 5만원 중에서 정합니다.</div></div>
       <div class="field" style="margin:0"><label>메시지 문구 유형</label>
         <select name="message_variant">
           <option value="reward" ${settings.message_variant !== 'info' ? 'selected' : ''}>리워드 기준 명시 (등록률 우선)</option>

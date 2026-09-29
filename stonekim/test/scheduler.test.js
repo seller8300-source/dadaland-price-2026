@@ -257,5 +257,5 @@ test('메시지 본문에 고유 업로드 링크가 포함된다', () => {
 
   const withReward = templates.buildBody('FIRST', link, reward.current(), 'reward');
   assert.match(withReward, /http:\/\/test\.local\/project\/upload\/abc/);
-  assert.match(withReward, /확인 후 최대 5만원/);
+  assert.match(withReward, /신세계상품권 3만원/);
 });

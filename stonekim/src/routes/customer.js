@@ -34,6 +34,7 @@ function settingsForPage() {
     consentText: getSetting('consent_text'),
     privacyText: getSetting('privacy_text'),
     reward: rewardTiers.current(),
+    logoUrl: getSetting('brand_logo_url', ''),
     minPhotos: photos.limits().min,
     maxPhotos: photos.limits().max,
   };
@@ -58,7 +59,7 @@ async function handle(req, res, url) {
     const count = getDb()
       .prepare('SELECT COUNT(*) AS c FROM photos WHERE project_id = ?')
       .get(found.project.project_id).c;
-    return http.html(res, view.donePage({ photoCount: count, reward: rewardTiers.current() }));
+    return http.html(res, view.donePage({ photoCount: count, reward: rewardTiers.current(), logoUrl: getSetting('brand_logo_url', '') }));
   }
 
   if (!params) return false;
@@ -73,7 +74,7 @@ async function handle(req, res, url) {
       const count = getDb()
         .prepare('SELECT COUNT(*) AS c FROM photos WHERE project_id = ?')
         .get(project.project_id).c;
-      return http.html(res, view.donePage({ photoCount: count, reward: rewardTiers.current() }));
+      return http.html(res, view.donePage({ photoCount: count, reward: rewardTiers.current(), logoUrl: getSetting('brand_logo_url', '') }));
     }
     return http.html(res, view.uploadPage({ project, customer, error: null, ...settingsForPage() }));
   }

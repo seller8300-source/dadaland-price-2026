@@ -78,7 +78,8 @@ test('업로드 페이지는 로그인 없이 열리고 방문이 기록된다',
   const html = await res.text();
   assert.equal(res.status, 200);
   assert.match(html, /시공사례 등록/);
-  assert.match(html, /김고객 고객님 주문내역/);
+  assert.match(html, /김고객 고객님/);
+  assert.match(html, /주문내역/);
   assert.match(html, /스톤킴의 홈페이지, SNS/, '동의 문구 노출');
   assert.doesNotMatch(html, /0102222/, '전화번호는 화면에 노출하지 않는다');
 
@@ -344,7 +345,9 @@ test('설정 저장: 리워드 금액·문구 유형·발송 한도', async () =
       consent_text: '사진 활용에 동의합니다.',
       privacy_text: '개인정보 안내',
       reward_criteria_text: '기준 설명',
-      reward_max_amount: '50000',
+      reward_headline: '사진 등록하고 상품권 받기',
+      reward_benefits: '등록 고객 100% 3만원',
+      brand_logo_url: 'https://stonekim.kr/logo.png',
       message_variant: 'reward',
       daily_send_limit: '30',
       min_photos: '2',
@@ -359,11 +362,14 @@ test('설정 저장: 리워드 금액·문구 유형·발송 한도', async () =
   const { getSetting } = require('../src/db');
   assert.equal(getSetting('message_variant'), 'reward');
   assert.equal(getSetting('daily_send_limit'), '30');
+  assert.equal(getSetting('brand_logo_url'), 'https://stonekim.kr/logo.png');
 
-  // 문구 유형을 바꿔도 고객 화면의 리워드 안내는 그대로 유지된다
+  // 저장한 혜택 문구와 로고가 고객 화면에 그대로 반영된다
   const { token } = seedProject('SK909');
   const page = await (await fetch(`${base}/project/upload/${token}`)).text();
-  assert.match(page, /최대 5만원/);
+  assert.match(page, /사진 등록하고 상품권 받기/);
+  assert.match(page, /등록 고객 100% 3만원/);
+  assert.match(page, /stonekim\.kr\/logo\.png/);
 
   // 원상 복구 (뒤따르는 테스트에 영향 없도록)
   await fetch(`${base}/admin/settings`, {
@@ -371,8 +377,8 @@ test('설정 저장: 리워드 금액·문구 유형·발송 한도', async () =
     headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       csrf, consent_text: '사진 활용에 동의합니다.', privacy_text: '개인정보 안내',
-      reward_criteria_text: '기준 설명', reward_max_amount: '50000',
-      message_variant: 'info', daily_send_limit: '0', min_photos: '3', max_photos: '10',
+      reward_criteria_text: '기준 설명', reward_headline: '사진 등록 안내', reward_benefits: '혜택',
+      brand_logo_url: '', message_variant: 'info', daily_send_limit: '0', min_photos: '3', max_photos: '10',
       send_hour_kst: '10', test_phone: '',
     }),
     redirect: 'manual',

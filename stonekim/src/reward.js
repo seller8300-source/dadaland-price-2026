@@ -2,15 +2,24 @@
 const { getSetting } = require('./db');
 
 /**
- * 리워드 기준.
- * 지급 구조는 "사진 확인 후 최대 5만원" 이며, 실제 금액은 검수 후 관리자가 정한다.
- * (0원 / 1만원 / 3만원 / 5만원 / 직접입력)
- * 고객에게 특정 금액을 확정 약속하지 않도록, 안내 문구는 항상 '확인 후 안내' 를 함께 쓴다.
+ * 고객에게 보여줄 리워드 안내.
+ * 승인된 알림톡 템플릿의 혜택 내용과 화면 문구가 어긋나면 고객 불만으로 이어지므로,
+ * 문구는 전부 설정값으로 두고 관리자가 한 곳에서 맞춘다.
  */
 
-const PRESET_AMOUNTS = [0, 10000, 30000, 50000];
+const PRESET_AMOUNTS = [0, 10000, 30000, 50000, 100000];
 
-/** 10000 → '1만원', 15000 → '1만 5천원', 5000 → '5천원' */
+const DEFAULT_HEADLINE = '사진 등록만 하셔도 신세계상품권 3만원';
+const DEFAULT_BENEFITS = [
+  '등록 고객 100% 신세계상품권 3만원',
+  '매월 BEST 선정 시 10만원 추가 지급',
+  '우수 시공사례는 스톤킴 공식 채널 게시',
+].join('\n');
+const DEFAULT_CRITERIA =
+  '완공된 현장이 잘 보이는 사진 3장 이상을 등록해주세요. ' +
+  '확인 후 등록하신 연락처로 지급 안내를 드립니다.';
+
+/** 10000 → '1만원', 15000 → '1만 5천원' */
 function moneyWords(amount) {
   const value = Math.max(0, Math.round(Number(amount) || 0));
   if (value === 0) return '0원';
@@ -24,29 +33,23 @@ function moneyWords(amount) {
 }
 
 /**
- * 현재 리워드 안내 기준.
- * @returns {{max:number, maxWords:string, headline:string, criteria:string, presets:number[]}}
+ * @returns {{headline:string, benefits:string[], criteria:string, presets:number[]}}
  */
 function current() {
-  const raw = Number(getSetting('reward_max_amount', '50000'));
-  const max = Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : 50000;
-  const maxWords = moneyWords(max);
   return {
-    max,
-    maxWords,
-    headline: `사진 확인 후 최대 ${maxWords}의 시공사례 리워드`,
-    criteria: getSetting(
-      'reward_criteria_text',
-      '등록해주신 사진을 확인한 뒤 리워드 대상 여부와 금액을 개별 안내드립니다. ' +
-        '완공된 현장 전체가 잘 보이는 사진일수록 시공사례로 선정될 가능성이 높습니다.'
-    ),
+    headline: getSetting('reward_headline', DEFAULT_HEADLINE),
+    benefits: String(getSetting('reward_benefits', DEFAULT_BENEFITS))
+      .split('\n')
+      .map((line) => line.replace(/^[①②③④⑤\d.)\s-]+/, '').trim())
+      .filter(Boolean),
+    criteria: getSetting('reward_criteria_text', DEFAULT_CRITERIA),
     presets: PRESET_AMOUNTS.slice(),
   };
 }
 
-/** 관리자 리워드 선택지: 0원 / 1만원 / 3만원 / 5만원 (그 외는 직접입력) */
+/** 관리자 지급 선택지 */
 function presets() {
   return PRESET_AMOUNTS.slice();
 }
 
-module.exports = { current, presets, moneyWords, PRESET_AMOUNTS };
+module.exports = { current, presets, moneyWords, PRESET_AMOUNTS, DEFAULT_HEADLINE, DEFAULT_BENEFITS, DEFAULT_CRITERIA };

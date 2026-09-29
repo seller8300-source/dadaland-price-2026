@@ -551,8 +551,10 @@ function settingsPage(req, res, url, session) {
       settings: {
         consent_text: getSetting('consent_text'),
         privacy_text: getSetting('privacy_text'),
+        reward_headline: getSetting('reward_headline'),
+        reward_benefits: getSetting('reward_benefits'),
         reward_criteria_text: getSetting('reward_criteria_text'),
-        reward_max_amount: getSetting('reward_max_amount'),
+        brand_logo_url: getSetting('brand_logo_url'),
         daily_send_limit: getSetting('daily_send_limit'),
         send_stages: String(scheduler.stageLimit()),
         send_allowlist: scheduler.allowlist().map(formatPhone).join(', '),
@@ -576,7 +578,7 @@ async function settingsSave(req, res, session) {
   const fields = await readFormBody(req, res);
   if (!fields) return true;
   if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/settings', 'csrf'));
-  const textKeys = ['consent_text', 'privacy_text', 'reward_criteria_text'];
+  const textKeys = ['consent_text', 'privacy_text', 'reward_criteria_text', 'reward_headline', 'reward_benefits'];
   for (const key of textKeys) {
     if (fields[key] !== undefined) setSetting(key, String(fields[key]).slice(0, 2000));
   }
@@ -587,7 +589,7 @@ async function settingsSave(req, res, session) {
   const hour = Math.max(0, Math.min(23, Number(fields.send_hour_kst)));
   setSetting('send_hour_kst', Number.isFinite(hour) ? hour : 10);
   setSetting('test_phone', normalizePhone(fields.test_phone) || '');
-  setSetting('reward_max_amount', Math.max(0, Math.round(Number(fields.reward_max_amount) || 0)));
+  setSetting('brand_logo_url', String(fields.brand_logo_url || '').trim().slice(0, 500));
   setSetting('daily_send_limit', Math.max(0, Math.round(Number(fields.daily_send_limit) || 0)));
   setSetting('message_variant', templates.variantOf(fields.message_variant));
   const stages = Math.min(3, Math.max(1, Math.round(Number(fields.send_stages) || 3)));
