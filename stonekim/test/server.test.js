@@ -305,6 +305,30 @@ test('테스트 발송은 고객이 아닌 관리자 번호로만 나간다', as
   assert.equal(message.project_id, null, '테스트 발송은 고객 주문에 기록되지 않는다');
 });
 
+test('발송 허용 번호가 걸려 있으면 테스트 발송도 막힌다', async () => {
+  const { cookie, csrf } = await login();
+  const { setSetting } = require('../src/db');
+  setSetting('send_allowlist', '01038227444');
+
+  const blocked = await fetch(`${base}/admin/test-send`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, phone: '010-7769-7444', type: 'FIRST' }),
+    redirect: 'manual',
+  });
+  assert.match(blocked.headers.get('location'), /f=test_not_allowed/);
+
+  const allowed = await fetch(`${base}/admin/test-send`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, phone: '010-3822-7444', type: 'FIRST' }),
+    redirect: 'manual',
+  });
+  assert.match(allowed.headers.get('location'), /f=test_sent/);
+
+  setSetting('send_allowlist', '');
+});
+
 test('사진 검수 · 리워드 저장', async () => {
   const { cookie, csrf } = await login();
   const db = getDb();

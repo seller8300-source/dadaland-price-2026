@@ -44,6 +44,10 @@ const FLASH = {
   discarded: () => ['info', '업로드를 취소했습니다.'],
   test_sent: () => ['ok', '테스트 메시지를 발송했습니다.'],
   test_failed: () => ['err', '테스트 발송에 실패했습니다. 번호와 발송 설정을 확인해 주세요.'],
+  test_not_allowed: () => [
+    'err',
+    '발송 허용 번호에 없는 번호입니다. 설정의 발송 허용 번호에 추가하거나 그 번호로 테스트하세요.',
+  ],
   password_changed: () => ['ok', '비밀번호를 변경했습니다. 다시 로그인해 주세요.'],
   password_failed: () => ['err', '현재 비밀번호가 올바르지 않거나 새 비밀번호가 너무 짧습니다.'],
   csrf: () => ['err', '요청이 만료되었습니다. 다시 시도해 주세요.'],
@@ -609,6 +613,10 @@ async function testSend(req, res, session) {
   if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/settings', 'csrf'));
   const phone = normalizePhone(fields.phone);
   if (!phone) return http.redirect(res, flashUrl('/admin/settings', 'test_failed'));
+  // 허용 번호 목록이 걸려 있으면 테스트 발송도 그 번호로만 나간다 (배너 문구와 동작을 일치시킨다)
+  if (!scheduler.isAllowed(phone)) {
+    return http.redirect(res, flashUrl('/admin/settings', 'test_not_allowed'));
+  }
   const type = ['FIRST', 'SECOND', 'FINAL'].includes(fields.type) ? fields.type : 'FIRST';
   const sampleUrl = `${scheduler.baseUrl()}/project/upload/TEST-PREVIEW`;
   const tiers = rewardTiers.current();
