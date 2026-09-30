@@ -8,13 +8,14 @@ const scheduler = require('./scheduler');
 
 /** 헤더 → 내부 필드 매핑 (표기 흔들림 흡수) */
 const HEADER_ALIASES = {
-  order_number: ['주문번호', '주문 번호', '주문no', '주문 no', '오더번호', '수주번호', '전표번호', '문서번호', '판매번호', '판매No', 'order_number', 'orderno'],
+  // '일자-No.' 는 이카운트 판매조회의 기본 전표 열이다. 날짜가 함께 들어 있어 출고일도 여기서 뽑는다.
+  order_number: ['주문번호', '주문 번호', '주문no', '주문 no', '오더번호', '수주번호', '전표번호', '문서번호', '판매번호', '판매No', '일자-No.', '일자No', '일자-번호', 'order_number', 'orderno'],
   ship_date: ['출고일', '출고일자', '출고날짜', '납품일', '납품일자', '출하일', '판매일자', '전표일자', '일자', 'ship_date', 'shipdate'],
   customer_name: ['고객명', '고객', '성명', '이름', '수취인', '수령인', '거래처명', '거래처', 'customer', 'name'],
   phone: ['휴대폰번호', '휴대폰', '핸드폰', '연락처', '전화번호', '휴대전화', '수신번호', '고객연락처', '거래처연락처', 'phone', 'mobile'],
   product: ['제품명', '제품', '품명', '품목명', '품목', '상품명', 'product'],
   quantity: ['수량', '개수', '수량(ea)', 'qty', 'quantity'],
-  amount: ['금액', '금 액', '합계금액', '공급가액', '매출액', '판매금액', 'amount'],
+  amount: ['금액', '금 액', '합계금액', '금액합계', '공급가액', '매출액', '판매금액', '합계', 'amount'],
   site_name: ['현장명', '현장', '납품현장', '납품처', '납품장소', 'site', 'site_name'],
   region: ['현장지역', '지역', '시공지역', '주소', '납품주소', 'region'],
   installation_date: ['시공예정일', '시공일', '시공예정', '설치예정일', '설치일', 'installation_date'],
@@ -55,6 +56,26 @@ function findHeaderRow(rows) {
     if (hasKey && score >= 2 && score > best.score) best = { index: i, map, score };
   }
   return best;
+}
+
+/**
+ * 연락처 칸에서 휴대폰번호를 꺼낸다.
+ * 이카운트 거래처 연락처에는 '조남 공장장님 010-8547-4975 /010-3278-4045' 처럼
+ * 담당자 이름과 번호 여러 개가 한 칸에 들어 있는 경우가 많다. 첫 번째 번호를 쓰되,
+ * 원문 그대로가 아니었다는 사실은 경고로 남겨 관리자가 눈으로 확인하게 한다.
+ */
+const PHONE_IN_TEXT = /(?<!\d)01[0-9][\s.\-]?\d{3,4}[\s.\-]?\d{4}(?!\d)/g;
+
+function extractPhone(raw) {
+  const direct = normalizePhone(raw);
+  if (direct) return { phone: direct, extracted: false, others: [] };
+  const found = [];
+  for (const match of String(raw ?? '').matchAll(PHONE_IN_TEXT)) {
+    const phone = normalizePhone(match[0]);
+    if (phone && !found.includes(phone)) found.push(phone);
+  }
+  if (!found.length) return { phone: null, extracted: false, others: [] };
+  return { phone: found[0], extracted: true, others: found.slice(1) };
 }
 
 /** '2026/10/14 -5' 처럼 전표번호 앞에 붙은 날짜를 꺼낸다 (출고일 열이 없는 ERP 출력 대응) */
@@ -115,7 +136,8 @@ function parseUpload(buffer, fileName, options = {}) {
       return Number.isFinite(number) && cleaned !== '' && number < 0;
     };
     record.canceled = negative(record.quantity) || negative(record.amount_raw);
-    record.phone = normalizePhone(record.phone_raw);
+    const phoneResult = extractPhone(record.phone_raw);
+    record.phone = phoneResult.phone;
     record.ship_date = normalizeDate(pick('ship_date')) || dateFromOrderNumber(record.order_number);
     const installRaw = pick('installation_date');
     record.installation_date = installRaw ? normalizeDate(installRaw) : null;
@@ -141,6 +163,17 @@ function parseUpload(buffer, fileName, options = {}) {
     if (!record.ship_date) errors.push({ code: 'BAD_SHIP_DATE', text: '출고일 오류' });
     if (installRaw && !record.installation_date) {
       warnings.push({ code: 'BAD_INSTALL_DATE', text: '시공예정일 형식 오류 (미입력 처리)' });
+    }
+    if (phoneResult.extracted) {
+      warnings.push({
+        code: 'PHONE_EXTRACTED',
+        text: phoneResult.others.length
+          ? `연락처에 번호가 ${phoneResult.others.length + 1}개 — 첫 번째 번호로 발송 (확인 필요)`
+          : '연락처에서 번호만 추출 (확인 필요)',
+      });
+    }
+    if (record.customer_name && normalizePhone(record.customer_name)) {
+      warnings.push({ code: 'NAME_IS_PHONE', text: '고객명이 전화번호 — 메시지에 그대로 나갑니다' });
     }
     if (record.order_number) {
       if (seen.has(record.order_number)) {
@@ -232,7 +265,7 @@ function commitBatch(batchId, options = {}) {
   if (batch.status === 'COMMITTED') return { ok: false, error: '이미 등록된 업로드입니다.' };
 
   const now = new Date();
-  const result = { created: 0, skipped: 0, scheduled: 0, deferred: 0, canceled: 0, cancel_unmatched: 0, errors: [] };
+  const result = { created: 0, skipped: 0, scheduled: 0, deferred: 0, canceled: 0, canceled_by_phone: 0, cancel_unmatched: 0, errors: [] };
   const insertProject = db.prepare(
     `INSERT INTO projects
       (order_number, customer_id, product, quantity, ship_date, installation_date,
@@ -244,17 +277,17 @@ function commitBatch(batchId, options = {}) {
   db.exec('BEGIN');
   try {
     for (const row of batch.rows) {
-      // 취소 전표: 같은 주문번호가 이미 등록돼 있으면 자동 발송을 막는다.
+      // 취소 전표: 원래 주문을 찾아 자동 발송을 막는다.
       if (row.canceled) {
-        const existing = row.order_number
-          ? db.prepare('SELECT project_id FROM projects WHERE order_number = ?').get(row.order_number)
-          : null;
-        if (existing) {
+        const target = findCancelTarget(db, row);
+        if (target) {
+          const reason = target.how === 'order' ? 'ERP 취소 전표' : 'ERP 취소 전표 (번호 매칭)';
           db.prepare(
-            "UPDATE projects SET message_excluded = 1, excluded_reason = 'ERP 취소 전표', updated_at = ? WHERE project_id = ?"
-          ).run(nowIso(), existing.project_id);
-          scheduler.cancelScheduled(existing.project_id, 'CANCELED_ADMIN', 'ERP 취소 전표');
+            'UPDATE projects SET message_excluded = 1, excluded_reason = ?, updated_at = ? WHERE project_id = ?'
+          ).run(reason, nowIso(), target.project_id);
+          scheduler.cancelScheduled(target.project_id, 'CANCELED_ADMIN', reason);
           result.canceled++;
+          if (target.how === 'phone') result.canceled_by_phone++;
         } else {
           result.cancel_unmatched++;
         }
@@ -299,12 +332,43 @@ function commitBatch(batchId, options = {}) {
   return { ok: true, ...result };
 }
 
+/**
+ * 취소 전표가 어느 주문을 취소한 것인지 찾는다.
+ * 이카운트는 취소를 새 전표로 끊기 때문에 '일자-No.' 가 원래 판매와 다르다.
+ * 그래서 주문번호로 못 찾으면 같은 번호의 '아직 사진을 안 낸' 주문 중에서 찾는다.
+ * 한 건으로 좁혀지지 않으면 손대지 않고 미매칭으로 보고한다 (엉뚱한 주문을 끄는 것보다 낫다).
+ */
+function findCancelTarget(db, row) {
+  if (row.order_number) {
+    const byOrder = db.prepare('SELECT project_id FROM projects WHERE order_number = ?').get(row.order_number);
+    if (byOrder) return { project_id: byOrder.project_id, how: 'order' };
+  }
+  if (!row.phone) return null;
+  const candidates = db
+    .prepare(
+      `SELECT p.project_id, p.product FROM projects p
+         JOIN customers c ON c.customer_id = p.customer_id
+        WHERE c.phone = ? AND p.photo_submitted_at IS NULL AND p.message_excluded = 0
+        ORDER BY p.ship_date DESC, p.project_id DESC`
+    )
+    .all(row.phone);
+  if (!candidates.length) return null;
+  if (row.product) {
+    const sameProduct = candidates.filter((c) => (c.product || '') === row.product);
+    if (sameProduct.length === 1) return { project_id: sameProduct[0].project_id, how: 'phone' };
+    if (sameProduct.length > 1) return null;
+  }
+  if (candidates.length === 1) return { project_id: candidates[0].project_id, how: 'phone' };
+  return null;
+}
+
 function discardBatch(batchId) {
   getDb().prepare("UPDATE import_batches SET status = 'DISCARDED' WHERE batch_id = ? AND status = 'PREVIEW'")
     .run(batchId);
 }
 
 module.exports = {
+  extractPhone,
   HEADER_ALIASES,
   dateFromOrderNumber,
   REQUIRED_FIELDS,

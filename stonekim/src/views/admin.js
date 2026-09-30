@@ -640,7 +640,9 @@ function importPage({ session, flash, recent }) {
     <div class="field">
       <label>출고 엑셀 파일 (.xlsx / .csv)</label>
       <input type="file" name="file" accept=".xlsx,.csv,.tsv,text/csv" required>
-      <div class="hint">필수 항목: 주문번호 · 출고일 · 고객명 · 휴대폰번호 / 선택: 제품명 · 수량 · 현장명 · 현장지역 · 시공예정일 · 담당자</div>
+      <div class="hint">이카운트 <b>판매조회</b> 내려받기를 그대로 올리면 됩니다 (일자-No. · 거래처명 · 연락처 · 품목명 · 금액합계).</div>
+      <div class="hint">필수 항목: 주문번호(일자-No.) · 출고일 · 고객명(거래처명) · 휴대폰번호(연락처) / 선택: 제품명 · 수량 · 현장명 · 현장지역 · 시공예정일 · 담당자</div>
+      <div class="hint">출고일 열이 없으면 일자-No. 앞의 날짜를 씁니다. 금액이 마이너스인 행은 취소로 보고 해당 주문의 발송을 막습니다.</div>
     </div>
     <button class="btn" type="submit">미리보기</button>
   </form>

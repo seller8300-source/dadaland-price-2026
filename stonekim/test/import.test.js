@@ -170,3 +170,67 @@ test('헤더 표기가 달라도 매핑된다', () => {
   assert.equal(map.product, 4);
   assert.equal(map.installation_date, 5);
 });
+
+test('이카운트 판매조회 내려받기 형식 (일자-No. / 연락처 / 금액합계)', () => {
+  const buffer = fs.readFileSync(path.join(__dirname, 'fixtures', 'ecount-판매조회.csv'));
+  const { rows, summary, missingRequired } = importer.parseUpload(buffer, 'ecount.csv', { checkExisting: false });
+
+  // 출고일 열은 없지만 '일자-No.' 에서 날짜를 뽑아 쓰므로 등록에는 지장이 없다
+  assert.deepEqual(missingRequired, ['ship_date']);
+  assert.equal(summary.total, 9);
+  assert.equal(summary.valid, 7);
+
+  const byLine = (line) => rows.find((r) => r.line === line);
+
+  const plain = byLine(3);
+  assert.equal(plain.order_number, '2026/11/18 -1');
+  assert.equal(plain.ship_date, '2026-11-18');
+  assert.equal(plain.phone, '01031129278');
+
+  // '조남 공장장님 010-8547-4975 /010-3278-4045' → 첫 번째 번호 + 확인 경고
+  const messy = byLine(5);
+  assert.equal(messy.phone, '01085474975');
+  assert.ok(messy.valid);
+  assert.ok(messy.warnings.some((w) => w.code === 'PHONE_EXTRACTED'));
+
+  // 연락처가 아예 없는 쇼룸 전시용 행은 걸러낸다
+  const showroom = byLine(8);
+  assert.equal(showroom.valid, false);
+  assert.ok(showroom.errors.some((e) => e.code === 'BAD_PHONE'));
+
+  // 금액합계가 마이너스면 취소 전표
+  assert.equal(byLine(9).canceled, true);
+
+  // 고객명이 전화번호인 행은 등록은 되지만 경고를 남긴다
+  assert.ok(byLine(7).warnings.some((w) => w.code === 'NAME_IS_PHONE'));
+});
+
+test('취소 전표는 전표번호가 달라도 같은 번호의 주문을 찾아 발송을 막는다', () => {
+  const db = getDb();
+  const stage = (csv) => {
+    const parsed = importer.parseUpload(Buffer.from(csv, 'utf8'), 'x.csv');
+    return importer.saveBatch({ fileName: 'x.csv', rows: parsed.rows, summary: parsed.summary });
+  };
+
+  const batchId = stage('주문번호,출고일,고객명,휴대폰번호,제품명\nORD-CX-1,2026-09-20,엔디디자인,010-4843-2222,타일 A\n');
+  const committed = importer.commitBatch(batchId);
+  assert.equal(committed.created, 1);
+  const project = db.prepare("SELECT * FROM projects WHERE order_number = 'ORD-CX-1'").get();
+  assert.equal(project.message_excluded, 0);
+
+  // 이카운트는 취소를 새 전표로 끊으므로 주문번호가 다르다
+  const cancelBatchId = stage(
+    '주문번호,출고일,고객명,휴대폰번호,제품명,금액합계\nORD-CX-9,2026-09-25,엔디디자인,010-4843-2222,타일 A,-165000\n'
+  );
+  const cancelResult = importer.commitBatch(cancelBatchId);
+  assert.equal(cancelResult.canceled, 1);
+  assert.equal(cancelResult.canceled_by_phone, 1);
+
+  const after = db.prepare("SELECT * FROM projects WHERE order_number = 'ORD-CX-1'").get();
+  assert.equal(after.message_excluded, 1);
+  assert.match(after.excluded_reason, /취소 전표/);
+  const scheduled = db
+    .prepare("SELECT COUNT(*) AS c FROM messages WHERE project_id = ? AND status = 'SCHEDULED'")
+    .get(after.project_id).c;
+  assert.equal(scheduled, 0, '예약돼 있던 메시지도 함께 취소된다');
+});
