@@ -577,3 +577,36 @@ test('계정을 중지하면 로그인되어 있던 세션까지 끊긴다', asy
   });
   assert.equal(relogin.status, 401, '중지된 계정은 다시 로그인되지 않는다');
 });
+
+
+test('비상 복구: STONEKIM_ADMIN_RESET 으로 관리자 비밀번호를 되돌린다', () => {
+  const auth = require('../src/auth');
+  const db = getDb();
+
+  // 비밀번호를 잊고, 계정까지 잠긴 최악의 상황을 만든다
+  const before = db.prepare("SELECT user_id FROM admin_users WHERE username = 'admin'").get();
+  auth.changePassword(before.user_id, '기억나지-않는-비밀번호');
+  db.prepare("UPDATE admin_users SET active = 0, role = 'STAFF' WHERE user_id = ?").run(before.user_id);
+  assert.equal(auth.login('admin', 'test-password-1234', '127.0.0.1'), null);
+
+  // 스위치가 꺼져 있으면 아무 일도 없어야 한다
+  delete process.env.STONEKIM_ADMIN_RESET;
+  assert.equal(auth.resetBootstrapPassword(), null);
+
+  process.env.STONEKIM_ADMIN_RESET = '1';
+  process.env.STONEKIM_ADMIN_USER = 'admin';
+  process.env.STONEKIM_ADMIN_PASSWORD = 'test-password-1234';
+  const result = auth.resetBootstrapPassword();
+  assert.equal(result.username, 'admin');
+
+  const session = auth.login('admin', 'test-password-1234', '127.0.0.1');
+  assert.ok(session, '환경변수 비밀번호로 다시 들어갈 수 있어야 한다');
+  assert.equal(session.user.role, 'OWNER', '권한도 관리자로 되돌아간다');
+  assert.equal(session.user.active, 1, '잠겨 있던 계정도 풀린다');
+
+  // 데이터는 건드리지 않는다
+  assert.ok(db.prepare('SELECT COUNT(*) AS c FROM projects').get().c > 0, '주문 데이터는 그대로다');
+
+  delete process.env.STONEKIM_ADMIN_RESET;
+  auth.logout(session.token);
+});

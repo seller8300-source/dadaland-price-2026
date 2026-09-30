@@ -98,6 +98,34 @@ function ensureBootstrapUser() {
   return { username, password, generated: !process.env.STONEKIM_ADMIN_PASSWORD };
 }
 
+/**
+ * 비상 복구: 관리자 비밀번호를 환경변수 값으로 되돌린다.
+ * 관리자 계정이 하나뿐인데 비밀번호를 잊으면 아무도 못 들어가고, DB 를 지우는 것 말고는
+ * 방법이 없다. 그래서 환경변수 STONEKIM_ADMIN_RESET 이 켜져 있을 때만 동작하는
+ * 탈출구를 둔다. 데이터는 건드리지 않는다.
+ * 켜 둔 채로 두면 재배포마다 비밀번호가 되돌아가므로, 복구 후에는 변수를 지워야 한다.
+ */
+function resetBootstrapPassword() {
+  if (!/^(1|true|yes|on)$/i.test(String(process.env.STONEKIM_ADMIN_RESET || ''))) return null;
+  const password = process.env.STONEKIM_ADMIN_PASSWORD;
+  if (!password) return { error: 'STONEKIM_ADMIN_PASSWORD 가 비어 있어 복구할 수 없습니다.' };
+
+  const db = getDb();
+  const username = process.env.STONEKIM_ADMIN_USER || 'admin';
+  const existing = findUser(username);
+  if (!existing) {
+    createUser(username, password, '관리자', { role: 'OWNER' });
+    return { username, created: true };
+  }
+  // 잠긴 계정일 수도 있으니 권한과 사용 여부도 같이 되돌린다.
+  db.prepare(
+    `UPDATE admin_users SET password_hash = ?, role = 'OWNER', active = 1, must_change_password = 0
+      WHERE user_id = ?`
+  ).run(hashPassword(password), existing.user_id);
+  db.prepare('DELETE FROM admin_sessions WHERE user_id = ?').run(existing.user_id);
+  return { username, created: false };
+}
+
 function login(username, password, ip) {
   const user = findUser(username);
   if (!user || !verifyPassword(password, user.password_hash)) {
@@ -179,6 +207,7 @@ module.exports = {
   findUser,
   countUsers,
   ensureBootstrapUser,
+  resetBootstrapPassword,
   login,
   logout,
   sessionFromToken,

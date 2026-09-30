@@ -60,6 +60,22 @@ function bootstrap() {
     }
     console.log('─'.repeat(58));
   }
+
+  const reset = auth.resetBootstrapPassword();
+  if (reset) {
+    console.log('─'.repeat(58));
+    if (reset.error) {
+      console.log(` 관리자 비밀번호 복구 실패 · ${reset.error}`);
+    } else {
+      console.log(' 관리자 비밀번호를 환경변수 값으로 되돌렸습니다.');
+      console.log(`   아이디   : ${reset.username}${reset.created ? '  (계정을 새로 만들었습니다)' : ''}`);
+      console.log('   비밀번호 : 환경변수 STONEKIM_ADMIN_PASSWORD 에 지정한 값');
+      console.log('   ※ 로그인한 뒤 STONEKIM_ADMIN_RESET 환경변수를 반드시 삭제하세요.');
+      console.log('     남겨두면 재배포할 때마다 비밀번호가 이 값으로 되돌아갑니다.');
+    }
+    console.log('─'.repeat(58));
+  }
+
   auth.purgeExpiredSessions();
 }
 
