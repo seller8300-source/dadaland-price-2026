@@ -14,6 +14,9 @@ const messaging = require('../messaging');
 const view = require('../views/admin');
 const { nowIso, normalizePhone, normalizeDate, formatPhone, randomToken, toDateString } = require('../util');
 
+// 관리자만 들어갈 수 있는 화면
+const OWNER_ONLY = ['/admin/settings', '/admin/test-send', '/admin/users'];
+
 const PAGE_SIZE = 30;
 const MAX_FORM_BYTES = 1024 * 256;
 const MAX_UPLOAD_BYTES = Number(process.env.STONEKIM_MAX_UPLOAD_BYTES || 120 * 1024 * 1024);
@@ -42,6 +45,15 @@ const FLASH = {
   import_hold: (created) => ['ok', `${created || 0}건을 등록했습니다. 자동발송은 보류 상태입니다.`],
   import_error: () => ['err', '엑셀 파일을 읽을 수 없습니다. 형식을 확인해 주세요.'],
   discarded: () => ['info', '업로드를 취소했습니다.'],
+  forbidden: () => ['err', '관리자만 들어갈 수 있는 화면입니다.'],
+  password_mismatch: () => ['err', '새 비밀번호 두 칸이 서로 다릅니다.'],
+  user_bad_name: () => ['err', '아이디는 영문 소문자·숫자·._- 조합 3~30자로 지어주세요.'],
+  user_exists: () => ['err', '이미 있는 아이디입니다.'],
+  user_missing: () => ['err', '해당 계정을 찾을 수 없습니다.'],
+  user_self: () => ['err', '본인 계정은 여기서 바꿀 수 없습니다. 비밀번호 변경 화면을 쓰세요.'],
+  user_last_owner: () => ['err', '마지막 관리자 계정은 끌 수 없습니다.'],
+  user_enabled: () => ['ok', '계정을 다시 사용하도록 했습니다.'],
+  user_disabled: () => ['ok', '계정 사용을 중지했습니다. 로그인되어 있던 세션도 끊었습니다.'],
   test_sent: () => ['ok', '테스트 메시지를 발송했습니다.'],
   test_failed: () => ['err', '테스트 발송에 실패했습니다. 번호와 발송 설정을 확인해 주세요.'],
   test_not_allowed: () => [
@@ -685,19 +697,91 @@ async function testSend(req, res, session) {
   );
 }
 
+function passwordPage(req, res, url, session) {
+  return http.html(res, view.passwordPage({
+    session,
+    flash: flashFrom(url),
+    forced: !!session.must_change_password,
+  }));
+}
+
 async function changePassword(req, res, session) {
   const fields = await readFormBody(req, res);
   if (!fields) return true;
-  if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/settings', 'csrf'));
+  if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/password', 'csrf'));
   const user = auth.findUser(session.username);
   const next = String(fields.next || '');
+  if (fields.confirm !== undefined && String(fields.confirm) !== next) {
+    return http.redirect(res, flashUrl('/admin/password', 'password_mismatch'));
+  }
   if (!user || !auth.verifyPassword(String(fields.current || ''), user.password_hash) || next.length < 8) {
-    return http.redirect(res, flashUrl('/admin/settings', 'password_failed'));
+    return http.redirect(res, flashUrl('/admin/password', 'password_failed'));
   }
   auth.changePassword(user.user_id, next);
   audit(session, 'PASSWORD_CHANGE', user.username, null, http.clientIp(req));
   http.setCookie(res, 'sk_admin', '', { maxAge: 0 });
   return http.redirect(res, '/admin/login?f=password_changed');
+}
+
+
+/* ------------------------------------------------------------- 계정 관리 */
+
+function usersPage(req, res, url, session, newAccount) {
+  return http.html(res, view.usersPage({
+    users: auth.listUsers(),
+    session,
+    flash: flashFrom(url),
+    newAccount,
+  }));
+}
+
+async function usersCreate(req, res, url, session) {
+  const fields = await readFormBody(req, res);
+  if (!fields) return true;
+  if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/users', 'csrf'));
+  const username = String(fields.username || '').trim().toLowerCase();
+  if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+    return http.redirect(res, flashUrl('/admin/users', 'user_bad_name'));
+  }
+  if (auth.findUser(username)) return http.redirect(res, flashUrl('/admin/users', 'user_exists'));
+  // 임시 비밀번호는 시스템이 만든다. 직원은 첫 로그인에서 반드시 바꾼다.
+  const password = randomToken(6);
+  const role = fields.role === 'OWNER' ? 'OWNER' : 'STAFF';
+  auth.createUser(username, password, String(fields.display_name || '').trim() || username, {
+    role,
+    mustChangePassword: true,
+  });
+  audit(session, 'USER_CREATE', username, role, http.clientIp(req));
+  return usersPage(req, res, url, session, { username, password });
+}
+
+async function usersSetActive(req, res, session, userId) {
+  const fields = await readFormBody(req, res);
+  if (!fields) return true;
+  if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/users', 'csrf'));
+  const target = auth.getUser(userId);
+  if (!target) return http.redirect(res, flashUrl('/admin/users', 'user_missing'));
+  if (target.user_id === session.user_id) return http.redirect(res, flashUrl('/admin/users', 'user_self'));
+  const active = fields.value === '1';
+  // 마지막 관리자까지 끄면 아무도 설정에 못 들어간다.
+  if (!active && target.role === 'OWNER' && auth.countOwners() <= 1) {
+    return http.redirect(res, flashUrl('/admin/users', 'user_last_owner'));
+  }
+  auth.setActive(userId, active);
+  audit(session, active ? 'USER_ENABLE' : 'USER_DISABLE', target.username, null, http.clientIp(req));
+  return http.redirect(res, flashUrl('/admin/users', active ? 'user_enabled' : 'user_disabled'));
+}
+
+async function usersReset(req, res, url, session, userId) {
+  const fields = await readFormBody(req, res);
+  if (!fields) return true;
+  if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/users', 'csrf'));
+  const target = auth.getUser(userId);
+  if (!target) return http.redirect(res, flashUrl('/admin/users', 'user_missing'));
+  if (target.user_id === session.user_id) return http.redirect(res, flashUrl('/admin/users', 'user_self'));
+  const password = auth.resetPassword(userId);
+  audit(session, 'USER_PASSWORD_RESET', target.username, null, http.clientIp(req));
+  return usersPage(req, res, url, session, { username: target.username, password });
 }
 
 /* --------------------------------------------------------------- 라우터 */
@@ -724,6 +808,28 @@ async function handle(req, res, url) {
     return http.redirect(res, '/admin/login');
   }
 
+  // 임시 비밀번호로 들어온 계정은 비밀번호를 바꾸기 전까지 다른 화면으로 못 간다.
+  if (session.must_change_password && pathname !== '/admin/password') {
+    if (req.method === 'GET') return http.redirect(res, '/admin/password');
+    return http.text(res, '비밀번호를 먼저 변경해 주세요.', 403);
+  }
+
+  if (pathname === '/admin/password') {
+    if (req.method === 'GET') return passwordPage(req, res, url, session);
+    if (req.method === 'POST') return changePassword(req, res, session);
+  }
+
+  // 설정과 계정 관리는 관리자(OWNER)만. 직원이 발송 허용 번호를 풀어버리는 사고를 막는다.
+  if (OWNER_ONLY.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) && !auth.isOwner(session)) {
+    if (req.method === 'GET') return http.redirect(res, flashUrl('/admin', 'forbidden'));
+    return http.text(res, '권한이 없습니다. 관리자에게 문의하세요.', 403);
+  }
+
+  if (pathname === '/admin/users') {
+    if (req.method === 'GET') return usersPage(req, res, url, session);
+    if (req.method === 'POST') return usersCreate(req, res, url, session);
+  }
+
   if (pathname === '/admin' && req.method === 'GET') return dashboard(req, res, url, session);
   if (pathname === '/admin/projects' && req.method === 'GET') return projectsList(req, res, url, session);
   if (pathname === '/admin/review' && req.method === 'GET') return reviewQueue(req, res, url, session);
@@ -734,7 +840,6 @@ async function handle(req, res, url) {
     if (req.method === 'POST') return settingsSave(req, res, session);
   }
   if (pathname === '/admin/test-send' && req.method === 'POST') return testSend(req, res, session);
-  if (pathname === '/admin/password' && req.method === 'POST') return changePassword(req, res, session);
 
   if (pathname === '/admin/import') {
     if (req.method === 'GET') return importHome(req, res, url, session);
@@ -742,6 +847,11 @@ async function handle(req, res, url) {
   }
 
   let params;
+  if ((params = http.match('/admin/users/:id/active', pathname)) && req.method === 'POST')
+    return usersSetActive(req, res, session, Number(params.id));
+  if ((params = http.match('/admin/users/:id/reset', pathname)) && req.method === 'POST')
+    return usersReset(req, res, url, session, Number(params.id));
+
   if ((params = http.match('/admin/import/:id', pathname)) && req.method === 'GET')
     return importPreview(req, res, url, session, Number(params.id));
   if ((params = http.match('/admin/import/:id/commit', pathname)) && req.method === 'POST')

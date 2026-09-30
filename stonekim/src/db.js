@@ -91,6 +91,10 @@ CREATE TABLE IF NOT EXISTS admin_users (
   username      TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   display_name  TEXT,
+  role          TEXT NOT NULL DEFAULT 'STAFF',   -- OWNER = 설정·계정까지, STAFF = 일상 업무만
+  active        INTEGER NOT NULL DEFAULT 1,
+  must_change_password INTEGER NOT NULL DEFAULT 0,
+  last_login_at TEXT,
   created_at    TEXT NOT NULL
 );
 
@@ -202,6 +206,25 @@ function upgradeLegacySettings(db) {
 
 let dbInstance = null;
 
+
+/** 이미 만들어진 DB 에 나중에 생긴 열을 더한다 (SQLite 는 IF NOT EXISTS 를 지원하지 않는다) */
+function addColumnIfMissing(db, table, column, ddl) {
+  const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+}
+
+function migrate(db) {
+  addColumnIfMissing(db, 'admin_users', 'role', "TEXT NOT NULL DEFAULT 'STAFF'");
+  addColumnIfMissing(db, 'admin_users', 'active', 'INTEGER NOT NULL DEFAULT 1');
+  addColumnIfMissing(db, 'admin_users', 'must_change_password', 'INTEGER NOT NULL DEFAULT 0');
+  addColumnIfMissing(db, 'admin_users', 'last_login_at', 'TEXT');
+  // 역할이 생기기 전에 만들어진 DB 는 최초 계정(대표님)이 STAFF 로 남아 설정에 못 들어간다.
+  const hasOwner = db.prepare("SELECT 1 AS x FROM admin_users WHERE role = 'OWNER'").get();
+  if (!hasOwner) {
+    db.exec("UPDATE admin_users SET role = 'OWNER' WHERE user_id = (SELECT MIN(user_id) FROM admin_users)");
+  }
+}
+
 function getDb() {
   if (dbInstance) return dbInstance;
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -209,6 +232,7 @@ function getDb() {
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(SCHEMA);
+  migrate(db);
   seedSettings(db);
   upgradeLegacySettings(db);
   dbInstance = db;

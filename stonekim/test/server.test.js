@@ -64,6 +64,21 @@ async function login() {
   return { cookie, csrf };
 }
 
+/** 관리자 외 계정으로 로그인 (직원은 설정 화면을 못 열기 때문에 대시보드에서 csrf 를 읽는다) */
+async function loginAs(username, password) {
+  const res = await fetch(`${base}/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username, password }),
+    redirect: 'manual',
+  });
+  assert.equal(res.status, 302, `${username} 로그인 실패`);
+  const cookie = res.headers.getSetCookie()[0].split(';')[0];
+  const html = await (await fetch(`${base}/admin/password`, { headers: { cookie } })).text();
+  const csrf = /name="csrf" value="([^"]+)"/.exec(html)[1];
+  return { cookie, csrf };
+}
+
 /* ------------------------------------------------------------- 고객 화면 */
 
 test('잘못된 토큰은 404 안내 화면', async () => {
@@ -471,4 +486,94 @@ test('로그아웃하면 세션이 무효화된다', async () => {
   });
   const after = await fetch(`${base}/admin`, { headers: { cookie }, redirect: 'manual' });
   assert.equal(after.status, 302);
+});
+
+
+test('직원 계정: 관리자가 만들고 · 첫 로그인에 비밀번호를 바꾸고 · 설정에는 못 들어간다', async () => {
+  const { cookie, csrf } = await login();
+
+  const created = await fetch(`${base}/admin/users`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, username: 'younghee', display_name: '김영희', role: 'STAFF' }),
+  });
+  assert.equal(created.status, 200);
+  const temporary = (await created.text()).match(/letter-spacing:1px">([^<]+)</)[1];
+
+  // 임시 비밀번호로 들어오면 비밀번호를 바꾸기 전까지 어느 화면도 못 연다
+  const first = await loginAs('younghee', temporary);
+  const blocked = await fetch(`${base}/admin/review`, { headers: { cookie: first.cookie }, redirect: 'manual' });
+  assert.equal(blocked.status, 302);
+  assert.match(blocked.headers.get('location'), /\/admin\/password/);
+
+  const changed = await fetch(`${base}/admin/password`, {
+    method: 'POST',
+    headers: { cookie: first.cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf: first.csrf, current: temporary, next: 'staff-pass-99', confirm: 'staff-pass-99' }),
+    redirect: 'manual',
+  });
+  assert.match(changed.headers.get('location'), /password_changed/);
+
+  const staff = await loginAs('younghee', 'staff-pass-99');
+  for (const path of ['/admin', '/admin/projects', '/admin/review', '/admin/rewards', '/admin/messages', '/admin/import']) {
+    const res = await fetch(base + path, { headers: { cookie: staff.cookie } });
+    assert.equal(res.status, 200, `${path} 은 직원도 쓸 수 있어야 한다`);
+  }
+
+  // 설정·계정 관리는 직원에게 잠겨 있다 (허용 번호를 직원이 풀면 전 고객에게 나간다)
+  const settings = await fetch(`${base}/admin/settings`, { headers: { cookie: staff.cookie }, redirect: 'manual' });
+  assert.equal(settings.status, 302);
+  assert.match(settings.headers.get('location'), /f=forbidden/);
+
+  const clearAllowlist = await fetch(`${base}/admin/settings`, {
+    method: 'POST',
+    headers: { cookie: staff.cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf: staff.csrf, send_allowlist: '' }),
+    redirect: 'manual',
+  });
+  assert.equal(clearAllowlist.status, 403, '직원은 발송 허용 번호를 건드릴 수 없다');
+
+  const makeUser = await fetch(`${base}/admin/users`, {
+    method: 'POST',
+    headers: { cookie: staff.cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf: staff.csrf, username: 'sneaky' }),
+    redirect: 'manual',
+  });
+  assert.equal(makeUser.status, 403);
+
+  const home = await (await fetch(`${base}/admin`, { headers: { cookie: staff.cookie } })).text();
+  assert.doesNotMatch(home, /href="\/admin\/settings"/, '메뉴에도 설정이 보이지 않는다');
+  assert.doesNotMatch(home, /href="\/admin\/users"/);
+});
+
+test('계정을 중지하면 로그인되어 있던 세션까지 끊긴다', async () => {
+  const { cookie, csrf } = await login();
+  const created = await fetch(`${base}/admin/users`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, username: 'temphand', display_name: '단기', role: 'STAFF' }),
+  });
+  const temporary = (await created.text()).match(/letter-spacing:1px">([^<]+)</)[1];
+  const staff = await loginAs('temphand', temporary);
+  const userId = getDb().prepare("SELECT user_id FROM admin_users WHERE username='temphand'").get().user_id;
+
+  const off = await fetch(`${base}/admin/users/${userId}/active`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, value: '0' }),
+    redirect: 'manual',
+  });
+  assert.match(off.headers.get('location'), /user_disabled/);
+
+  const after = await fetch(`${base}/admin/password`, { headers: { cookie: staff.cookie }, redirect: 'manual' });
+  assert.equal(after.status, 302);
+  assert.match(after.headers.get('location'), /\/admin\/login/);
+
+  const relogin = await fetch(`${base}/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username: 'temphand', password: temporary }),
+    redirect: 'manual',
+  });
+  assert.equal(relogin.status, 401, '중지된 계정은 다시 로그인되지 않는다');
 });

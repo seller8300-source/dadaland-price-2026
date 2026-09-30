@@ -101,7 +101,8 @@ const NAV = [
   ['/admin/rewards', '리워드'],
   ['/admin/messages', '발송 로그'],
   ['/admin/import', '엑셀 업로드'],
-  ['/admin/settings', '설정'],
+  ['/admin/settings', '설정', 'OWNER'],
+  ['/admin/users', '계정 관리', 'OWNER'],
 ];
 
 /** 발송 허용 번호가 설정되어 있으면 모든 관리자 화면 상단에 표시한다 */
@@ -116,7 +117,8 @@ function safetyBanner() {
 }
 
 function layout({ title, active, session, content, flash }) {
-  const nav = NAV.map(
+  const isOwner = !session || session.role === 'OWNER';
+  const nav = NAV.filter(([, , need]) => !need || isOwner).map(
     ([href, label]) =>
       `<a href="${href}" class="${active === href ? 'on' : ''}">${escapeHtml(label)}</a>`
   ).join('');
@@ -823,6 +825,102 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
   return layout({ title: '설정', active: '/admin/settings', session, content, flash });
 }
 
+
+const ROLE_LABEL = { OWNER: '관리자 (전체 권한)', STAFF: '직원 (설정 제외)' };
+
+function usersPage({ users, session, flash, newAccount }) {
+  const rows = users
+    .map((u) => {
+      const self = u.user_id === session.user_id;
+      return `<tr style="${u.active ? '' : 'opacity:.55'}">
+      <td><b>${escapeHtml(u.username)}</b>${self ? ' <span class="badge b-green">나</span>' : ''}</td>
+      <td>${escapeHtml(u.display_name || '')}</td>
+      <td>${u.role === 'OWNER' ? '<span class="badge b-amber">관리자</span>' : '<span class="badge">직원</span>'}</td>
+      <td>${u.active ? '사용중' : '<span class="muted">중지됨</span>'}${
+        u.must_change_password ? ' <span class="badge b-amber">비밀번호 변경 필요</span>' : ''
+      }</td>
+      <td class="small muted">${u.last_login_at ? fmtDateTime(u.last_login_at) : '로그인 기록 없음'}</td>
+      <td class="right">${
+        self
+          ? '<span class="small muted">본인 계정</span>'
+          : `<form method="post" action="/admin/users/${u.user_id}/reset" class="inline">
+               <input type="hidden" name="csrf" value="${escapeHtml(session.csrf)}">
+               <button class="btn sm quiet" type="submit">비밀번호 초기화</button>
+             </form>
+             <form method="post" action="/admin/users/${u.user_id}/active" class="inline">
+               <input type="hidden" name="csrf" value="${escapeHtml(session.csrf)}">
+               <input type="hidden" name="value" value="${u.active ? '0' : '1'}">
+               <button class="btn sm ${u.active ? 'danger' : 'ghost'}" type="submit">${u.active ? '사용 중지' : '다시 사용'}</button>
+             </form>`
+      }</td>
+    </tr>`;
+    })
+    .join('');
+
+  const created = newAccount
+    ? `<div class="flash ok">
+         <b>${escapeHtml(newAccount.username)}</b> 계정을 만들었습니다. 아래 임시 비밀번호를 직원에게 전달하세요.
+         이 화면을 벗어나면 다시 볼 수 없습니다 (분실하면 초기화하면 됩니다).
+         <div style="margin-top:8px;font-size:20px;font-weight:700;letter-spacing:1px">${escapeHtml(newAccount.password)}</div>
+         <div class="small" style="margin-top:6px">직원은 첫 로그인에서 비밀번호를 바꿔야 들어올 수 있습니다.</div>
+       </div>`
+    : '';
+
+  const content = `
+<h1 class="page">계정 관리</h1>
+<div class="page-sub">직원마다 계정을 따로 주세요. 누가 무엇을 했는지 기록이 남고, 퇴사하면 그 계정만 끄면 됩니다.</div>
+${created}
+<div class="card">
+  <h2>직원 계정 추가</h2>
+  <form method="post" action="/admin/users" class="row" style="align-items:flex-end">
+    <input type="hidden" name="csrf" value="${escapeHtml(session.csrf)}">
+    <div class="field"><label>아이디</label><input name="username" required placeholder="younghee" pattern="[A-Za-z0-9._-]{3,30}"></div>
+    <div class="field"><label>이름</label><input name="display_name" required placeholder="김영희"></div>
+    <div class="field"><label>권한</label>
+      <select name="role">
+        <option value="STAFF">직원 — 업로드·검수·리워드 (설정 제외)</option>
+        <option value="OWNER">관리자 — 설정·계정까지 전부</option>
+      </select>
+    </div>
+    <button class="btn" type="submit">계정 만들기</button>
+  </form>
+  <div class="hint" style="margin-top:10px">임시 비밀번호는 시스템이 만들어 화면에 한 번 보여줍니다.</div>
+</div>
+<div class="card" style="padding:0"><div class="tablewrap"><table>
+  <thead><tr><th>아이디</th><th>이름</th><th>권한</th><th>상태</th><th>마지막 로그인</th><th></th></tr></thead>
+  <tbody>${rows}</tbody>
+</table></div></div>
+<div class="card">
+  <h2>권한이 하는 일</h2>
+  <div class="kv">
+    <div>직원</div><div>대시보드 · 주문·현장 · 사진 검수 · 리워드 · 발송 로그 · 엑셀 업로드</div>
+    <div>관리자</div><div>직원이 하는 전부 + <b>설정</b>(발송 허용 번호, 알림톡 채널, 리워드 문구) + <b>계정 관리</b></div>
+  </div>
+  <div class="hint" style="margin-top:10px">발송 허용 번호를 비우면 실제 고객에게 나가기 시작합니다. 그래서 설정은 관리자만 들어갑니다.</div>
+</div>`;
+  return layout({ title: '계정 관리', active: '/admin/users', session, content, flash });
+}
+
+function passwordPage({ session, flash, forced }) {
+  const content = `
+<h1 class="page">비밀번호 변경</h1>
+${
+  forced
+    ? '<div class="flash err">임시 비밀번호로 로그인하셨습니다. 새 비밀번호를 정해야 다른 화면으로 갈 수 있습니다.</div>'
+    : ''
+}
+<div class="card" style="max-width:460px">
+  <form method="post" action="/admin/password">
+    <input type="hidden" name="csrf" value="${escapeHtml(session.csrf)}">
+    <div class="field"><label>현재 비밀번호</label><input type="password" name="current" required autocomplete="current-password"></div>
+    <div class="field"><label>새 비밀번호 (8자 이상)</label><input type="password" name="next" required minlength="8" autocomplete="new-password"></div>
+    <div class="field"><label>새 비밀번호 확인</label><input type="password" name="confirm" required minlength="8" autocomplete="new-password"></div>
+    <button class="btn" type="submit">변경</button>
+  </form>
+</div>`;
+  return layout({ title: '비밀번호 변경', active: '', session, content, flash });
+}
+
 module.exports = {
   layout,
   loginPage,
@@ -835,6 +933,8 @@ module.exports = {
   importPage,
   importPreviewPage,
   settingsPage,
+  usersPage,
+  passwordPage,
   CSS,
   STATUS_BADGE,
   MESSAGE_STATUS_BADGE,
