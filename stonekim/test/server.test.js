@@ -300,9 +300,33 @@ test('테스트 발송은 고객이 아닌 관리자 번호로만 나간다', as
   });
   assert.equal(res.status, 302);
   assert.match(res.headers.get('location'), /f=test_sent/);
-  const message = getDb().prepare("SELECT * FROM messages WHERE message_type='TEST' ORDER BY message_id DESC").get();
+  const db = getDb();
+  const message = db.prepare("SELECT * FROM messages WHERE message_type='TEST' ORDER BY message_id DESC").get();
   assert.equal(message.to_phone, '01099990000');
-  assert.equal(message.project_id, null, '테스트 발송은 고객 주문에 기록되지 않는다');
+
+  // 테스트 발송이 보낸 링크는 실제로 열려야 한다 ('유효하지 않은 링크'가 아니어야 한다)
+  const project = db.prepare("SELECT * FROM projects WHERE order_number = 'TEST-01099990000'").get();
+  assert.ok(project, '테스트 발송용 주문이 만들어진다');
+  assert.equal(project.message_excluded, 1, '테스트 주문은 자동 발송에서 제외된다');
+  assert.equal(message.project_id, project.project_id);
+  assert.ok(message.body.includes(project.upload_token), '메시지 본문에 실제 토큰이 들어간다');
+
+  const page = await fetch(`${base}/project/upload/${project.upload_token}`);
+  assert.equal(page.status, 200);
+  const pageHtml = await page.text();
+  assert.doesNotMatch(pageHtml, /유효하지 않은 링크/);
+
+  // 같은 번호로 다시 테스트해도 주문은 하나만 쌓인다
+  await fetch(`${base}/admin/test-send`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, phone: '010-9999-0000', type: 'FIRST' }),
+    redirect: 'manual',
+  });
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS c FROM projects WHERE order_number LIKE 'TEST-%'").get().c,
+    1
+  );
 });
 
 test('발송 허용 번호가 걸려 있으면 테스트 발송도 막힌다', async () => {

@@ -110,7 +110,8 @@ function kpi() {
 
   const visited = one(
     `SELECT COUNT(*) AS c FROM projects WHERE open_count > 0
-       AND project_id IN (SELECT project_id FROM messages WHERE status IN ('SENT','SENT_SMS'))`
+       AND project_id IN (SELECT project_id FROM messages
+            WHERE status IN ('SENT','SENT_SMS') AND message_type IN ('FIRST','SECOND','FINAL'))`
   ).c;
 
   const submittedTotal = one("SELECT COUNT(*) AS c FROM projects WHERE photo_submitted_at IS NOT NULL").c;

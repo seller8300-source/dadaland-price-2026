@@ -12,7 +12,7 @@ const templates = require('../templates');
 const rewardTiers = require('../reward');
 const messaging = require('../messaging');
 const view = require('../views/admin');
-const { nowIso, normalizePhone, normalizeDate, formatPhone } = require('../util');
+const { nowIso, normalizePhone, normalizeDate, formatPhone, randomToken, toDateString } = require('../util');
 
 const PAGE_SIZE = 30;
 const MAX_FORM_BYTES = 1024 * 256;
@@ -607,6 +607,42 @@ async function settingsSave(req, res, session) {
   return http.redirect(res, flashUrl('/admin/settings', 'saved'));
 }
 
+/**
+ * 테스트 발송용 주문을 확보한다 (번호당 1건 재사용).
+ * 자동 발송에서는 제외해 두므로 스케줄러가 이 주문으로 메시지를 보내지 않는다.
+ */
+function ensureTestProject(phone) {
+  const db = getDb();
+  const orderNumber = `TEST-${phone}`;
+  const existing = db.prepare('SELECT * FROM projects WHERE order_number = ?').get(orderNumber);
+  if (existing) return existing;
+
+  let customer = db.prepare('SELECT * FROM customers WHERE phone = ?').get(phone);
+  if (!customer) {
+    db.prepare('INSERT INTO customers (name, phone, created_at) VALUES (?,?,?)')
+      .run('테스트', phone, nowIso());
+    customer = db.prepare('SELECT * FROM customers WHERE phone = ?').get(phone);
+  }
+  db.prepare(
+    `INSERT INTO projects
+       (order_number, customer_id, product, quantity, ship_date, installation_date,
+        site_name, region, sales_manager, upload_token, status, message_excluded,
+        excluded_reason, created_at, updated_at)
+     VALUES (?,?,?,?,?,NULL,?,'','',?,'READY',1,'테스트 발송용',?,?)`
+  ).run(
+    orderNumber,
+    customer.customer_id,
+    '테스트 주문',
+    '1',
+    toDateString(new Date()),
+    '테스트 현장',
+    randomToken(24),
+    nowIso(),
+    nowIso()
+  );
+  return db.prepare('SELECT * FROM projects WHERE order_number = ?').get(orderNumber);
+}
+
 async function testSend(req, res, session) {
   const fields = await readFormBody(req, res);
   if (!fields) return true;
@@ -618,7 +654,10 @@ async function testSend(req, res, session) {
     return http.redirect(res, flashUrl('/admin/settings', 'test_not_allowed'));
   }
   const type = ['FIRST', 'SECOND', 'FINAL'].includes(fields.type) ? fields.type : 'FIRST';
-  const sampleUrl = `${scheduler.baseUrl()}/project/upload/TEST-PREVIEW`;
+  // 테스트 발송도 실제로 열리는 링크를 보낸다. 존재하지 않는 토큰을 보내면
+  // 고객 화면이 '유효하지 않은 링크'로 뜨기 때문에 테스트 의미가 없다.
+  const project = ensureTestProject(phone);
+  const sampleUrl = scheduler.uploadUrl(project.upload_token);
   const tiers = rewardTiers.current();
   const body = templates.buildBody(type, sampleUrl, tiers);
   const result = await messaging.deliver({
@@ -627,7 +666,7 @@ async function testSend(req, res, session) {
     messageType: type,
     variables: {
       '#{고객명}': '테스트',
-      '#{토큰}': 'TEST-PREVIEW',
+      '#{토큰}': project.upload_token,
       '#{링크}': sampleUrl,
       '#{최대리워드}': tiers.maxWords,
     },
@@ -635,9 +674,9 @@ async function testSend(req, res, session) {
   getDb()
     .prepare(
       `INSERT INTO messages (project_id, to_phone, message_type, scheduled_at, sent_at, channel, status, failure_reason, body, provider_ref, created_at)
-       VALUES (NULL, ?, 'TEST', ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, 'TEST', ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(phone, nowIso(), nowIso(), result.channel, result.status, result.error, body, result.ref, nowIso());
+    .run(project.project_id, phone, nowIso(), nowIso(), result.channel, result.status, result.error, body, result.ref, nowIso());
   setSetting('test_phone', phone);
   audit(session, 'TEST_SEND', phone, result.status, http.clientIp(req));
   return http.redirect(
