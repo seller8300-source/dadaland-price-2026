@@ -362,6 +362,76 @@ function findCancelTarget(db, row) {
   return null;
 }
 
+
+/**
+ * 주문 한 건을 손으로 등록한다 (전화 주문 · 이카운트에 아직 안 잡힌 건).
+ * 엑셀 업로드와 같은 규칙을 쓰되, 주문번호를 비우면 자동으로 만들어 준다.
+ * @returns {{ok:boolean, error?:string, project_id?:number, scheduled_at?:string}}
+ */
+function createManualProject(input, options = {}) {
+  const db = getDb();
+  const name = String(input.customer_name || '').trim();
+  const phone = normalizePhone(input.phone);
+  const shipDate = normalizeDate(input.ship_date) || toDateString(new Date());
+  const installDate = input.installation_date ? normalizeDate(input.installation_date) : null;
+
+  if (!name) return { ok: false, error: '고객명을 입력해 주세요.' };
+  if (!phone) return { ok: false, error: '휴대폰번호 형식이 올바르지 않습니다.' };
+  if (input.installation_date && !installDate) {
+    return { ok: false, error: '시공예정일 형식이 올바르지 않습니다. (예: 2026-10-15)' };
+  }
+
+  // 주문번호를 안 적으면 날짜 기준으로 만들어 준다 (M20261002-1 …)
+  let orderNumber = String(input.order_number || '').trim();
+  if (!orderNumber) {
+    const prefix = `M${shipDate.replace(/-/g, '')}`;
+    const used = db
+      .prepare("SELECT COUNT(*) AS c FROM projects WHERE order_number LIKE ?")
+      .get(`${prefix}-%`).c;
+    orderNumber = `${prefix}-${used + 1}`;
+  }
+  if (db.prepare('SELECT 1 AS x FROM projects WHERE order_number = ?').get(orderNumber)) {
+    return { ok: false, error: `이미 등록된 주문번호입니다. (${orderNumber})` };
+  }
+
+  const customerId = findOrCreateCustomer(name, phone);
+  const ts = nowIso();
+  db.prepare(
+    `INSERT INTO projects
+      (order_number, customer_id, product, quantity, ship_date, installation_date,
+       site_name, region, sales_manager, upload_token, status, message_excluded,
+       excluded_reason, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?, 'READY', ?, ?, ?, ?)`
+  ).run(
+    orderNumber, customerId,
+    String(input.product || '').trim() || null,
+    String(input.quantity || '').trim() || null,
+    shipDate, installDate,
+    String(input.site_name || '').trim() || null,
+    String(input.region || '').trim() || null,
+    String(input.sales_manager || '').trim() || null,
+    randomToken(),
+    options.hold ? 1 : 0,
+    options.hold ? '수기 등록 시 발송 보류' : null,
+    ts, ts
+  );
+  const projectId = db.prepare('SELECT last_insert_rowid() AS id').get().id;
+
+  let scheduledAt = null;
+  if (!options.hold) {
+    const messageId = scheduler.scheduleFirstMessage(projectId);
+    if (messageId) {
+      const message = db.prepare('SELECT scheduled_at FROM messages WHERE message_id = ?').get(messageId);
+      const clamped = clampSchedule(message.scheduled_at, new Date());
+      if (clamped !== message.scheduled_at) {
+        db.prepare('UPDATE messages SET scheduled_at = ? WHERE message_id = ?').run(clamped, messageId);
+      }
+      scheduledAt = clamped;
+    }
+  }
+  return { ok: true, project_id: projectId, order_number: orderNumber, scheduled_at: scheduledAt };
+}
+
 function discardBatch(batchId) {
   getDb().prepare("UPDATE import_batches SET status = 'DISCARDED' WHERE batch_id = ? AND status = 'PREVIEW'")
     .run(batchId);
@@ -369,6 +439,7 @@ function discardBatch(batchId) {
 
 module.exports = {
   extractPhone,
+  createManualProject,
   HEADER_ALIASES,
   dateFromOrderNumber,
   REQUIRED_FIELDS,

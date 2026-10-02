@@ -610,3 +610,81 @@ test('비상 복구: STONEKIM_ADMIN_RESET 으로 관리자 비밀번호를 되�
   delete process.env.STONEKIM_ADMIN_RESET;
   auth.logout(session.token);
 });
+
+
+test('주문 수기 등록: 고객명·번호만으로 등록되고 1차가 예약된다', async () => {
+  const { cookie, csrf } = await login();
+  const db = getDb();
+
+  const page = await fetch(`${base}/admin/projects/new`, { headers: { cookie } });
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /주문 직접 등록/);
+
+  const created = await fetch(`${base}/admin/projects/new`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      csrf, mode: 'schedule',
+      customer_name: '전화주문고객', phone: '010-2468-1357',
+      ship_date: '2026-10-02', installation_date: '2026-10-20',
+      product: '칼라카타 600×1200', site_name: '전화 현장',
+    }),
+    redirect: 'manual',
+  });
+  assert.equal(created.status, 302);
+  assert.match(created.headers.get('location'), /f=manual_created/);
+
+  // 주문번호를 비웠으므로 자동으로 만들어진다
+  const project = db
+    .prepare("SELECT * FROM projects WHERE order_number LIKE 'M20261002-%' ORDER BY project_id DESC")
+    .get();
+  assert.ok(project, '주문번호가 자동 생성된다');
+  assert.equal(project.installation_date, '2026-10-20');
+  assert.equal(project.message_excluded, 0);
+
+  // 시공예정일 +2일로 1차가 잡힌다
+  const message = db
+    .prepare("SELECT * FROM messages WHERE project_id = ? AND message_type = 'FIRST'")
+    .get(project.project_id);
+  assert.equal(message.status, 'SCHEDULED');
+  assert.match(message.scheduled_at, /^2026-10-22/);
+
+  // 고객 화면 링크가 실제로 열려야 한다
+  const upload = await fetch(`${base}/project/upload/${project.upload_token}`);
+  assert.equal(upload.status, 200);
+  assert.match(await upload.text(), /전화주문고객/);
+});
+
+test('주문 수기 등록: 번호가 틀리면 입력값을 그대로 돌려주며 막는다', async () => {
+  const { cookie, csrf } = await login();
+  const res = await fetch(`${base}/admin/projects/new`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, mode: 'schedule', customer_name: '김영희', phone: '1234' }),
+  });
+  assert.equal(res.status, 200, '등록되지 않고 입력 화면이 다시 뜬다');
+  const html = await res.text();
+  assert.match(html, /휴대폰번호 형식이 올바르지 않습니다/);
+  assert.match(html, /value="김영희"/, '쳐 둔 값은 남아 있어야 한다');
+  assert.equal(getDb().prepare("SELECT COUNT(*) AS c FROM customers WHERE name='김영희'").get().c, 0);
+});
+
+test('주문 수기 등록: 발송 보류로 넣으면 예약이 잡히지 않는다', async () => {
+  const { cookie, csrf } = await login();
+  await fetch(`${base}/admin/projects/new`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      csrf, mode: 'hold', order_number: 'MANUAL-HOLD-1',
+      customer_name: '보류고객', phone: '010-1357-2468', ship_date: '2026-10-02',
+    }),
+    redirect: 'manual',
+  });
+  const db = getDb();
+  const project = db.prepare("SELECT * FROM projects WHERE order_number = 'MANUAL-HOLD-1'").get();
+  assert.equal(project.message_excluded, 1);
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS c FROM messages WHERE project_id = ?").get(project.project_id).c,
+    0
+  );
+});

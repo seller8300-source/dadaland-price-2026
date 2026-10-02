@@ -432,8 +432,16 @@ function projectsPage({ rows, filter, query, page, pages, total, session, flash 
   }
 
   const content = `
-<h1 class="page">주문 · 현장 관리</h1>
-<div class="page-sub">전체 ${total}건</div>
+<div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:22px">
+  <div>
+    <h1 class="page">주문 · 현장 관리</h1>
+    <div class="page-sub" style="margin-bottom:0">전체 ${total}건</div>
+  </div>
+  <div class="row">
+    <a class="btn" href="/admin/projects/new">+ 주문 직접 등록</a>
+    <a class="btn ghost" href="/admin/import">📥 엑셀로 여러 건</a>
+  </div>
+</div>
 <div class="filters">${filterLinks}</div>
 <form method="get" action="/admin/projects" class="row" style="margin-bottom:14px">
   <input type="hidden" name="filter" value="${escapeHtml(filter)}">
@@ -1027,6 +1035,54 @@ ${
   return layout({ title: '비밀번호 변경', active: '', session, content, flash });
 }
 
+
+function newProjectPage({ session, flash, today, values }) {
+  const v = values || {};
+  const content = `
+<h1 class="page">주문 직접 등록</h1>
+<div class="page-sub">전화로 받은 주문처럼 이카운트에 아직 안 잡힌 건을 손으로 넣습니다. 여러 건은 <a href="/admin/import" style="text-decoration:underline">엑셀 업로드</a>가 빠릅니다.</div>
+<div class="card" style="max-width:720px">
+  <form method="post" action="/admin/projects/new">
+    <input type="hidden" name="csrf" value="${escapeHtml(session.csrf)}">
+    <div class="g2 grid">
+      <div class="field"><label>고객명 *</label>
+        <input name="customer_name" required value="${escapeHtml(v.customer_name || '')}" placeholder="김영희" style="width:100%"></div>
+      <div class="field"><label>휴대폰번호 *</label>
+        <input name="phone" required value="${escapeHtml(v.phone || '')}" placeholder="010-1234-5678" style="width:100%">
+        <div class="hint">이 번호로 알림톡이 나갑니다.</div></div>
+    </div>
+    <div class="g2 grid">
+      <div class="field"><label>출고일</label>
+        <input type="date" name="ship_date" value="${escapeHtml(v.ship_date || today)}" style="width:100%"></div>
+      <div class="field"><label>시공예정일</label>
+        <input type="date" name="installation_date" value="${escapeHtml(v.installation_date || '')}" style="width:100%">
+        <div class="hint">알면 꼭 넣으세요. 시공예정일+2일에 1차가 나갑니다. 비우면 출고일+14일.</div></div>
+    </div>
+    <div class="g2 grid">
+      <div class="field"><label>제품명</label>
+        <input name="product" value="${escapeHtml(v.product || '')}" placeholder="칼라카타 600×1200" style="width:100%"></div>
+      <div class="field"><label>수량</label>
+        <input name="quantity" value="${escapeHtml(v.quantity || '')}" placeholder="12" style="width:100%"></div>
+    </div>
+    <div class="g2 grid">
+      <div class="field"><label>현장명</label>
+        <input name="site_name" value="${escapeHtml(v.site_name || '')}" placeholder="래미안 101동" style="width:100%"></div>
+      <div class="field"><label>담당자</label>
+        <input name="sales_manager" value="${escapeHtml(v.sales_manager || '')}" placeholder="김스톤" style="width:100%"></div>
+    </div>
+    <div class="field"><label>주문번호</label>
+      <input name="order_number" value="${escapeHtml(v.order_number || '')}" placeholder="비워두면 자동으로 만들어 줍니다" style="width:100%">
+      <div class="hint">이카운트 전표번호가 있으면 적어주세요. 나중에 엑셀로 올려도 중복 등록되지 않습니다.</div></div>
+    <div class="row" style="margin-top:4px">
+      <button class="btn" type="submit" name="mode" value="schedule">등록하고 자동발송 예약</button>
+      <button class="btn ghost" type="submit" name="mode" value="hold">등록만 (발송 보류)</button>
+      <a class="btn quiet" href="/admin/projects">취소</a>
+    </div>
+  </form>
+</div>`;
+  return layout({ title: '주문 직접 등록', active: '/admin/projects', session, content, flash });
+}
+
 module.exports = {
   layout,
   loginPage,
@@ -1039,6 +1095,7 @@ module.exports = {
   importPage,
   importPreviewPage,
   settingsPage,
+  newProjectPage,
   usersPage,
   passwordPage,
   CSS,

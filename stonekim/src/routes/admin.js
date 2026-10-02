@@ -54,6 +54,7 @@ const FLASH = {
   user_last_owner: () => ['err', '마지막 관리자 계정은 끌 수 없습니다.'],
   user_enabled: () => ['ok', '계정을 다시 사용하도록 했습니다.'],
   user_disabled: () => ['ok', '계정 사용을 중지했습니다. 로그인되어 있던 세션도 끊었습니다.'],
+  manual_created: () => ['ok', '주문을 등록했습니다.'],
   test_sent: () => ['ok', '테스트 메시지를 발송했습니다.'],
   test_failed: () => ['err', '테스트 발송에 실패했습니다. 번호와 발송 설정을 확인해 주세요.'],
   test_not_allowed: () => [
@@ -784,6 +785,31 @@ async function usersReset(req, res, url, session, userId) {
   return usersPage(req, res, url, session, { username: target.username, password });
 }
 
+
+/* ----------------------------------------------------- 주문 수기 등록 */
+
+function newProjectPage(req, res, url, session, values, error) {
+  return http.html(res, view.newProjectPage({
+    session,
+    flash: error ? { type: 'err', message: error } : flashFrom(url),
+    today: toDateString(new Date()),
+    values,
+  }));
+}
+
+async function newProjectCreate(req, res, url, session) {
+  const fields = await readFormBody(req, res);
+  if (!fields) return true;
+  if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/projects/new', 'csrf'));
+  const result = importer.createManualProject(fields, { hold: fields.mode === 'hold' });
+  if (!result.ok) {
+    // 입력값을 그대로 돌려줘서 다시 치지 않게 한다
+    return newProjectPage(req, res, url, session, fields, result.error);
+  }
+  audit(session, 'PROJECT_CREATE_MANUAL', result.order_number, null, http.clientIp(req));
+  return http.redirect(res, flashUrl(`/admin/projects/${result.project_id}`, 'manual_created'));
+}
+
 /* --------------------------------------------------------------- 라우터 */
 
 async function handle(req, res, url) {
@@ -859,6 +885,10 @@ async function handle(req, res, url) {
   if ((params = http.match('/admin/import/:id/discard', pathname)) && req.method === 'GET')
     return importDiscard(req, res, session, Number(params.id));
 
+  if (pathname === '/admin/projects/new') {
+    if (req.method === 'GET') return newProjectPage(req, res, url, session);
+    if (req.method === 'POST') return newProjectCreate(req, res, url, session);
+  }
   if ((params = http.match('/admin/projects/:id', pathname)) && req.method === 'GET')
     return projectDetail(req, res, url, session, Number(params.id));
   if ((params = http.match('/admin/projects/:id/send', pathname)) && req.method === 'POST')
