@@ -76,6 +76,67 @@ function isAllowed(phone) {
   return allowed.includes(normalizePhone(phone));
 }
 
+
+/**
+ * 발송 제외 명단 (대리점·파트너 등).
+ * 한 줄에 하나씩, 휴대폰번호 또는 거래처명 일부를 적는다.
+ */
+function excludeList() {
+  return String(getSetting('exclude_list', ''))
+    .split(/[\r\n,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+/**
+ * 이 고객이 제외 대상인지 본다.
+ * @returns {string|null} 제외 사유 (걸린 항목), 해당 없으면 null
+ */
+function excludedReasonFor({ phone, customer_name, site_name }) {
+  const entries = excludeList();
+  if (!entries.length) return null;
+  const normalized = normalizePhone(phone);
+  const haystack = `${customer_name || ''} ${site_name || ''}`.toLowerCase();
+  for (const entry of entries) {
+    const asPhone = normalizePhone(entry);
+    if (asPhone && normalized && asPhone === normalized) return `발송 제외 명단 (${entry})`;
+    // 번호가 아니면 거래처명·현장명에 그 말이 들어 있는지로 본다
+    if (!asPhone && entry.length >= 2 && haystack.includes(entry.toLowerCase())) {
+      return `발송 제외 명단 (${entry})`;
+    }
+  }
+  return null;
+}
+
+function dedupeDays() {
+  const value = Number(getSetting('dedupe_days', '30'));
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/**
+ * 같은 번호로 최근에 이미 보냈는지 본다 (한 업체가 여러 건 주문해도 반복 발송하지 않는다).
+ * @returns {{project_id:number, sent_at:string}|null} 최근 발송 건
+ */
+function recentSendTo(phone, exceptProjectId = null) {
+  const days = dedupeDays();
+  if (!days || !phone) return null;
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  return (
+    getDb()
+      .prepare(
+        `SELECT m.project_id, m.sent_at FROM messages m
+           JOIN projects p ON p.project_id = m.project_id
+           JOIN customers c ON c.customer_id = p.customer_id
+          WHERE c.phone = ? AND m.status IN ('SENT','SENT_SMS')
+            AND m.message_type IN ('FIRST','SECOND','FINAL')
+            AND m.sent_at >= ?
+            AND (? IS NULL OR m.project_id != ?)
+          ORDER BY m.sent_at DESC LIMIT 1`
+      )
+      .get(normalizePhone(phone), since, exceptProjectId, exceptProjectId) || null
+  );
+}
+
 function getProject(projectId) {
   return getDb().prepare('SELECT * FROM projects WHERE project_id = ?').get(projectId);
 }
@@ -200,6 +261,18 @@ async function sendScheduledMessage(row) {
   // 허용 번호 목록이 설정된 동안에는 그 외 번호로 나가지 않는다. 예약은 취소하지 않고 그대로 둔다.
   if (!isAllowed(row.phone)) {
     return { skipped: 'NOT_ALLOWLISTED' };
+  }
+  // 같은 업체가 여러 건 주문했다고 똑같은 요청을 여러 번 받게 하지 않는다.
+  if (row.message_type === 'FIRST') {
+    const recent = recentSendTo(row.phone, row.project_id);
+    if (recent) {
+      cancelScheduled(
+        project.project_id,
+        'CANCELED_ADMIN',
+        `최근 ${dedupeDays()}일 내 같은 번호로 발송한 건이 있어 생략`
+      );
+      return { skipped: 'DUPLICATE_RECENT' };
+    }
   }
 
   const link = uploadUrl(project.upload_token);
@@ -372,6 +445,10 @@ module.exports = {
   startScheduler,
   stopScheduler,
   sendHour,
+  excludeList,
+  excludedReasonFor,
+  dedupeDays,
+  recentSendTo,
   sentToday,
   dailyLimit,
   allowlist,

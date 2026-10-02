@@ -263,7 +263,8 @@ function rewardsList(req, res, url, session) {
   const args = filter === 'all' ? [] : [filter];
   const rows = db
     .prepare(
-      `SELECT r.*, p.order_number, p.site_name, c.name AS customer_name,
+      `SELECT r.*, p.order_number, p.site_name, p.contractor, p.reward_phone,
+              c.name AS customer_name, c.phone AS customer_phone,
               (SELECT COUNT(*) FROM photos ph WHERE ph.project_id = p.project_id) AS photo_count
          FROM rewards r
          JOIN projects p ON p.project_id = r.project_id
@@ -580,6 +581,8 @@ function settingsPage(req, res, url, session) {
         max_photos: getSetting('max_photos'),
         send_hour_kst: getSetting('send_hour_kst'),
         test_phone: getSetting('test_phone'),
+        exclude_list: getSetting('exclude_list'),
+        dedupe_days: getSetting('dedupe_days'),
       },
       audits,
       provider: messaging.providerLabel(),
@@ -616,6 +619,13 @@ async function settingsSave(req, res, session) {
     .map((value) => normalizePhone(value))
     .filter(Boolean);
   setSetting('send_allowlist', allowed.join(','));
+  // 발송 제외 명단은 번호와 업체명이 섞여 있으므로 줄 단위로만 정리한다
+  const excludes = String(fields.exclude_list || '')
+    .split(/[\r\n]+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  setSetting('exclude_list', excludes.join('\n'));
+  setSetting('dedupe_days', Math.max(0, Math.min(365, Math.round(Number(fields.dedupe_days) || 0))));
   audit(session, 'SETTINGS_UPDATE', null, null, http.clientIp(req));
   return http.redirect(res, flashUrl('/admin/settings', 'saved'));
 }

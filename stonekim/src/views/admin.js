@@ -523,6 +523,12 @@ function projectDetailPage({ project, customer, photos, messages, reward, reward
       <dt>현장지역</dt><dd>${escapeHtml(project.region || '-')}</dd>
       <dt>담당자</dt><dd>${escapeHtml(project.sales_manager || '-')}</dd>
       <dt>시공업체</dt><dd>${escapeHtml(project.contractor || '-')}</dd>
+      <dt>업장명</dt><dd>${escapeHtml(project.venue_name || '-')}</dd>
+      <dt>이름 노출</dt><dd>${
+        project.show_name_consent
+          ? '<span class="badge b-green">희망</span> 업체명·업장명 함께 소개 가능'
+          : '<span class="badge b-gray">미희망</span> 이름 없이 사진만'
+      }</dd>
       <dt>SNS</dt><dd>${escapeHtml(project.sns || '-')}</dd>
     </dl>
   </div>
@@ -531,6 +537,12 @@ function projectDetailPage({ project, customer, photos, messages, reward, reward
     <dl class="kv">
       <dt>고객명</dt><dd>${escapeHtml(customer.name)}</dd>
       <dt>연락처</dt><dd>${escapeHtml(formatPhone(customer.phone))}</dd>
+      <dt>상품권 받을 번호</dt><dd>${
+        project.reward_phone
+          ? `<b style="color:var(--brand)">${escapeHtml(formatPhone(project.reward_phone))}</b>
+             <span class="badge b-amber">발송 번호와 다름</span>`
+          : `${escapeHtml(formatPhone(customer.phone))} <span class="small muted">(발송 번호와 동일)</span>`
+      }</dd>
       <dt>업로드 링크</dt><dd class="small"><a href="${escapeHtml(project.upload_url)}" target="_blank" rel="noopener">${escapeHtml(project.upload_url)}</a></dd>
       <dt>링크 열람</dt><dd>${project.open_count}회 ${
         project.first_opened_at ? `<span class="small muted">(최초 ${fmtDateTime(project.first_opened_at)})</span>` : ''
@@ -666,7 +678,15 @@ function rewardsPage({ rows, filter, totals, session, flash }) {
     .map(
       (r) => `<tr>
     <td><a href="/admin/projects/${r.project_id}"><b>${escapeHtml(r.order_number)}</b></a></td>
-    <td>${escapeHtml(r.customer_name)}</td>
+    <td>${escapeHtml(r.customer_name)}${
+      r.contractor ? `<div class="small muted">${escapeHtml(r.contractor)}</div>` : ''
+    }</td>
+    <td>${
+      r.reward_phone
+        ? `<b style="color:var(--brand)">${escapeHtml(formatPhone(r.reward_phone))}</b>
+           <div class="small muted">발송 ${escapeHtml(formatPhone(r.customer_phone || ''))}</div>`
+        : escapeHtml(formatPhone(r.customer_phone || ''))
+    }</td>
     <td>${escapeHtml(r.site_name || '-')}</td>
     <td class="num">${r.photo_count}장</td>
     <td class="num">${won(r.amount)}</td>
@@ -682,7 +702,7 @@ function rewardsPage({ rows, filter, totals, session, flash }) {
 <div class="page-sub">검토대기 ${totals.pending}건 · 지급예정 ${totals.scheduled}건 · 지급완료 ${totals.paid}건 (${won(totals.paid_amount)})</div>
 <div class="filters">${links}</div>
 <div class="card" style="padding:0"><div class="tablewrap"><table>
-  <thead><tr><th>주문</th><th>고객</th><th>현장</th><th class="num">사진</th><th class="num">금액</th><th>상태</th><th>지급완료일</th><th>메모</th></tr></thead>
+  <thead><tr><th>주문</th><th>고객 · 업체</th><th>상품권 받을 번호</th><th>현장</th><th class="num">사진</th><th class="num">금액</th><th>상태</th><th>지급완료일</th><th>메모</th></tr></thead>
   <tbody>${body || '<tr><td colspan="8" class="muted" style="padding:24px">대상이 없습니다.</td></tr>'}</tbody>
 </table></div></div>`;
   return layout({ title: '리워드', active: '/admin/rewards', session, content, flash });
@@ -908,6 +928,19 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
         <input type="text" name="send_allowlist" value="${escapeHtml(settings.send_allowlist)}" placeholder="010-1234-5678, 010-2222-3333" style="width:100%;max-width:420px">
         <div class="hint">값이 있으면 <b>그 번호에만</b> 발송됩니다. 실전 테스트 중에는 대표님 번호만 넣어 두세요.<br>
           나머지 주문의 예약은 취소되지 않고 그대로 대기합니다.</div></div>
+    </div>
+    <div class="row">
+      <div class="field" style="margin:0;flex:1"><label>발송 제외 명단 (대리점 · 파트너 등)</label>
+        <textarea name="exclude_list" rows="4" placeholder="한 줄에 하나씩&#10;010-1111-2222&#10;스톤킴대리점&#10;OO파트너스">${escapeHtml(settings.exclude_list || '')}</textarea>
+        <div class="hint">휴대폰번호 또는 <b>거래처명·현장명에 들어가는 말</b>을 적습니다.
+          여기에 걸리면 등록은 되지만 자동 발송에서 빠집니다 (주문 상세에 사유가 남습니다).<br>
+          이미 등록된 건에는 적용되지 않습니다. 그 건은 주문 상세에서 직접 발송 제외하세요.</div></div>
+    </div>
+    <div class="row">
+      <div class="field" style="margin:0"><label>같은 번호 재발송 방지 기간 (일)</label>
+        <input type="number" name="dedupe_days" min="0" max="365" value="${escapeHtml(settings.dedupe_days || '30')}" style="width:150px">
+        <div class="hint">한 업체가 여러 건 주문해도 이 기간 안에는 1차를 한 번만 보냅니다.<br>
+          0 으로 두면 주문 건마다 보냅니다. 2차·최종 후속 메시지는 이 설정과 무관합니다.</div></div>
     </div>
     <div class="row">
       <div class="field" style="margin:0"><label>최소 사진 수</label><input type="number" name="min_photos" min="1" max="10" value="${escapeHtml(settings.min_photos)}" style="width:110px"></div>

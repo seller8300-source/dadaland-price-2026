@@ -121,7 +121,7 @@ test('동의 없이 제출하면 거부된다', async () => {
 
 test('사진 3장 미만이면 거부된다', async () => {
   const { token } = seedProject('SK903');
-  const { body, contentType } = buildMultipart({ consent: '1' }, [
+  const { body, contentType } = buildMultipart({ consent: '1', contractor: '스톤인테리어' }, [
     { field: 'photos', filename: '1.jpg', data: jpegBytes(400) },
   ]);
   const res = await fetch(`${base}/project/upload/${token}`, {
@@ -171,7 +171,7 @@ test('사진 제출 → 상태 변경 · 예약 메시지 취소 · 완료 화�
 
 test('JS 가 없는 브라우저의 일반 폼 전송도 처리된다', async () => {
   const { projectId, token } = seedProject('SK907');
-  const { body, contentType } = buildMultipart({ consent: '1', region: '대전 유성' },
+  const { body, contentType } = buildMultipart({ consent: '1', contractor: '스톤인테리어', region: '대전 유성' },
     [1, 2, 3].map((i) => ({ field: 'photos', filename: `n${i}.jpg`, data: jpegBytes(300) })));
   const res = await fetch(`${base}/project/upload/${token}`, {
     method: 'POST',
@@ -187,7 +187,7 @@ test('JS 가 없는 브라우저의 일반 폼 전송도 처리된다', async ()
 test('연타·재제출로 사진이 중복 등록되지 않는다', async () => {
   const { projectId, token } = seedProject('SK908');
   const send = () => {
-    const { body, contentType } = buildMultipart({ consent: '1' },
+    const { body, contentType } = buildMultipart({ consent: '1', contractor: '스톤인테리어' },
       [1, 2, 3].map((i) => ({ field: 'photos', filename: `d${i}.jpg`, data: jpegBytes(300) })));
     return fetch(`${base}/project/upload/${token}`, {
       method: 'POST',
@@ -687,4 +687,128 @@ test('주문 수기 등록: 발송 보류로 넣으면 예약이 잡히지 않�
     db.prepare("SELECT COUNT(*) AS c FROM messages WHERE project_id = ?").get(project.project_id).c,
     0
   );
+});
+
+
+/* ------------------------------------------------- 운영 피드백 반영분 */
+
+test('시공업체명은 필수 — 비우면 사진이 등록되지 않는다', async () => {
+  const { token, projectId } = seedProject('SK930');
+  const { body, contentType } = buildMultipart({ consent: '1' },
+    [1, 2, 3].map((i) => ({ field: 'photos', filename: `c${i}.jpg`, data: jpegBytes(300) })));
+  const res = await fetch(`${base}/project/upload/${token}`, {
+    method: 'POST', headers: { 'Content-Type': contentType }, body,
+  });
+  assert.match(await res.text(), /시공업체명을 입력해 주세요/);
+  assert.equal(getDb().prepare('SELECT COUNT(*) AS c FROM photos WHERE project_id = ?').get(projectId).c, 0);
+});
+
+test('상품권 받을 번호를 따로 적으면 그 번호가 보관된다', async () => {
+  const { token, projectId } = seedProject('SK931');
+  const { body, contentType } = buildMultipart(
+    { consent: '1', contractor: '다른회사인테리어', venue_name: '카페 스톤',
+      reward_phone: '010-5555-6666', show_name_consent: '1' },
+    [1, 2, 3].map((i) => ({ field: 'photos', filename: `r${i}.jpg`, data: jpegBytes(300) })));
+  const res = await fetch(`${base}/project/upload/${token}`, {
+    method: 'POST', headers: { 'Content-Type': contentType }, body, redirect: 'manual',
+  });
+  assert.equal(res.status, 302);
+
+  const project = getDb().prepare('SELECT * FROM projects WHERE project_id = ?').get(projectId);
+  assert.equal(project.reward_phone, '01055556666', '발송 번호와 다른 번호가 저장된다');
+  assert.equal(project.contractor, '다른회사인테리어');
+  assert.equal(project.venue_name, '카페 스톤');
+  assert.equal(project.show_name_consent, 1, '이름 노출 희망이 기록된다');
+});
+
+test('상품권 번호 형식이 틀리면 등록을 막는다', async () => {
+  const { token, projectId } = seedProject('SK932');
+  const { body, contentType } = buildMultipart(
+    { consent: '1', contractor: '스톤인테리어', reward_phone: '12345' },
+    [1, 2, 3].map((i) => ({ field: 'photos', filename: `b${i}.jpg`, data: jpegBytes(300) })));
+  const res = await fetch(`${base}/project/upload/${token}`, {
+    method: 'POST', headers: { 'Content-Type': contentType }, body,
+  });
+  assert.match(await res.text(), /상품권 받을 번호 형식/);
+  assert.equal(getDb().prepare('SELECT COUNT(*) AS c FROM photos WHERE project_id = ?').get(projectId).c, 0);
+});
+
+test('발송 제외 명단에 걸리면 등록은 되지만 자동 발송에서 빠진다', async () => {
+  const { cookie, csrf } = await login();
+  const { setSetting } = require('../src/db');
+  setSetting('exclude_list', '010-7777-8888\n대리점');
+
+  // 번호로 걸리는 경우
+  await fetch(`${base}/admin/projects/new`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, mode: 'schedule', order_number: 'EXC-PHONE',
+      customer_name: '파트너사', phone: '010-7777-8888', ship_date: '2026-10-02' }),
+    redirect: 'manual',
+  });
+  // 업체명으로 걸리는 경우
+  await fetch(`${base}/admin/projects/new`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, mode: 'schedule', order_number: 'EXC-NAME',
+      customer_name: '서울대리점', phone: '010-7777-9999', ship_date: '2026-10-02' }),
+    redirect: 'manual',
+  });
+  // 안 걸리는 경우
+  await fetch(`${base}/admin/projects/new`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrf, mode: 'schedule', order_number: 'EXC-NONE',
+      customer_name: '일반고객', phone: '010-7777-0000', ship_date: '2026-10-02' }),
+    redirect: 'manual',
+  });
+
+  const db = getDb();
+  for (const [orderNumber, shouldExclude] of [['EXC-PHONE', true], ['EXC-NAME', true], ['EXC-NONE', false]]) {
+    const project = db.prepare('SELECT * FROM projects WHERE order_number = ?').get(orderNumber);
+    assert.equal(project.message_excluded, shouldExclude ? 1 : 0, `${orderNumber} 제외 여부`);
+    const scheduled = db
+      .prepare("SELECT COUNT(*) AS c FROM messages WHERE project_id = ? AND status = 'SCHEDULED'")
+      .get(project.project_id).c;
+    assert.equal(scheduled, shouldExclude ? 0 : 1, `${orderNumber} 예약 여부`);
+    if (shouldExclude) assert.match(project.excluded_reason, /발송 제외 명단/);
+  }
+  setSetting('exclude_list', '');
+});
+
+test('같은 번호로 최근에 보냈으면 1차를 다시 보내지 않는다', async () => {
+  const db = getDb();
+  const { setSetting } = require('../src/db');
+  const scheduler = require('../src/scheduler');
+  setSetting('dedupe_days', '30');
+  setSetting('send_allowlist', '');
+
+  const importer = require('../src/import');
+  const first = importer.createManualProject({
+    order_number: 'DUP-1', customer_name: '중복업체', phone: '010-4444-5555', ship_date: '2026-10-02',
+  });
+  const second = importer.createManualProject({
+    order_number: 'DUP-2', customer_name: '중복업체', phone: '010-4444-5555', ship_date: '2026-10-02',
+  });
+  assert.ok(first.ok && second.ok);
+
+  // 첫 건은 정상 발송
+  const sent = await scheduler.sendNow(first.project_id, 'FIRST');
+  assert.equal(sent.ok, true);
+
+  // 두 번째 건은 예약 시각이 와도 건너뛴다
+  db.prepare("UPDATE messages SET scheduled_at = ? WHERE project_id = ? AND status = 'SCHEDULED'")
+    .run(new Date(Date.now() - 60000).toISOString(), second.project_id);
+  const results = await scheduler.processDue(new Date());
+  assert.ok(results.some((r) => r.skipped === 'DUPLICATE_RECENT'), '중복으로 건너뛴다');
+
+  const stillScheduled = db
+    .prepare("SELECT COUNT(*) AS c FROM messages WHERE project_id = ? AND status = 'SCHEDULED'")
+    .get(second.project_id).c;
+  assert.equal(stillScheduled, 0, '예약은 남겨두지 않고 취소된다');
+
+  // 기간을 0 으로 두면 중복 발송을 허용한다
+  setSetting('dedupe_days', '0');
+  assert.equal(scheduler.recentSendTo('01044445555'), null);
+  setSetting('dedupe_days', '30');
 });

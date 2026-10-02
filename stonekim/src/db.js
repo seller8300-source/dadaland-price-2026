@@ -29,7 +29,10 @@ CREATE TABLE IF NOT EXISTS projects (
   status            TEXT NOT NULL DEFAULT 'READY',
   message_excluded  INTEGER NOT NULL DEFAULT 0,
   excluded_reason   TEXT,
-  contractor        TEXT,                    -- 고객이 입력한 시공업체명
+  contractor        TEXT,                    -- 고객이 입력한 시공업체명 (필수 입력)
+  venue_name        TEXT,                    -- 업장명·상호 (카페, 매장 등)
+  reward_phone      TEXT,                    -- 상품권 받을 번호 (발송 번호와 다를 수 있다)
+  show_name_consent INTEGER NOT NULL DEFAULT 0, -- 업체명·업장명 노출 희망
   sns               TEXT,
   review_text       TEXT,
   consent_at        TEXT,                    -- 사진 활용 동의 시각
@@ -172,6 +175,11 @@ const DEFAULT_SETTINGS = {
   // 자동 발송 단계 수: 1=1차만, 2=1·2차, 3=1·2·최종
   // 승인된 알림톡 템플릿이 2개뿐이면 2로 두면 된다.
   send_stages: '3',
+  // 대리점·파트너처럼 아예 보내면 안 되는 곳. 한 줄에 하나씩, 번호 또는 거래처명 일부.
+  // 등록 시점에 걸러 자동 발송 제외로 넣는다.
+  exclude_list: '',
+  // 같은 번호로 이 기간 안에 이미 보냈으면 다시 보내지 않는다 (0 이면 중복 발송 허용).
+  dedupe_days: '30',
 };
 
 /**
@@ -214,6 +222,9 @@ function addColumnIfMissing(db, table, column, ddl) {
 }
 
 function migrate(db) {
+  addColumnIfMissing(db, 'projects', 'venue_name', 'TEXT');
+  addColumnIfMissing(db, 'projects', 'reward_phone', 'TEXT');
+  addColumnIfMissing(db, 'projects', 'show_name_consent', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'admin_users', 'role', "TEXT NOT NULL DEFAULT 'STAFF'");
   addColumnIfMissing(db, 'admin_users', 'active', 'INTEGER NOT NULL DEFAULT 1');
   addColumnIfMissing(db, 'admin_users', 'must_change_password', 'INTEGER NOT NULL DEFAULT 0');

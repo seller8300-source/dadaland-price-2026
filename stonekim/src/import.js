@@ -265,7 +265,7 @@ function commitBatch(batchId, options = {}) {
   if (batch.status === 'COMMITTED') return { ok: false, error: '이미 등록된 업로드입니다.' };
 
   const now = new Date();
-  const result = { created: 0, skipped: 0, scheduled: 0, deferred: 0, canceled: 0, canceled_by_phone: 0, cancel_unmatched: 0, errors: [] };
+  const result = { created: 0, skipped: 0, scheduled: 0, deferred: 0, canceled: 0, canceled_by_phone: 0, cancel_unmatched: 0, excluded_by_list: 0, errors: [] };
   const insertProject = db.prepare(
     `INSERT INTO projects
       (order_number, customer_id, product, quantity, ship_date, installation_date,
@@ -299,17 +299,22 @@ function commitBatch(batchId, options = {}) {
         continue;
       }
       const customerId = findOrCreateCustomer(row.customer_name, row.phone);
+      // 대리점·파트너 등 보내면 안 되는 곳은 등록은 하되 자동 발송에서 빼둔다
+      const excludedBy = scheduler.excludedReasonFor(row);
+      const hold = options.hold || !!excludedBy;
       const ts = nowIso();
       insertProject.run(
         row.order_number, customerId, row.product || null, row.quantity || null,
         row.ship_date, row.installation_date || null, row.site_name || null,
         row.region || null, row.sales_manager || null, randomToken(),
-        options.hold ? 1 : 0, options.hold ? '업로드 시 발송 보류' : null, ts, ts
+        hold ? 1 : 0,
+        excludedBy || (options.hold ? '업로드 시 발송 보류' : null), ts, ts
       );
+      if (excludedBy) result.excluded_by_list++;
       const projectId = db.prepare('SELECT last_insert_rowid() AS id').get().id;
       result.created++;
 
-      if (!options.hold) {
+      if (!hold) {
         const messageId = scheduler.scheduleFirstMessage(projectId);
         if (messageId) {
           const message = db.prepare('SELECT scheduled_at FROM messages WHERE message_id = ?').get(messageId);
@@ -395,6 +400,10 @@ function createManualProject(input, options = {}) {
   }
 
   const customerId = findOrCreateCustomer(name, phone);
+  const excludedBy = scheduler.excludedReasonFor({
+    phone, customer_name: name, site_name: input.site_name,
+  });
+  const hold = options.hold || !!excludedBy;
   const ts = nowIso();
   db.prepare(
     `INSERT INTO projects
@@ -411,14 +420,14 @@ function createManualProject(input, options = {}) {
     String(input.region || '').trim() || null,
     String(input.sales_manager || '').trim() || null,
     randomToken(),
-    options.hold ? 1 : 0,
-    options.hold ? '수기 등록 시 발송 보류' : null,
+    hold ? 1 : 0,
+    excludedBy || (options.hold ? '수기 등록 시 발송 보류' : null),
     ts, ts
   );
   const projectId = db.prepare('SELECT last_insert_rowid() AS id').get().id;
 
   let scheduledAt = null;
-  if (!options.hold) {
+  if (!hold) {
     const messageId = scheduler.scheduleFirstMessage(projectId);
     if (messageId) {
       const message = db.prepare('SELECT scheduled_at FROM messages WHERE message_id = ?').get(messageId);
@@ -429,7 +438,10 @@ function createManualProject(input, options = {}) {
       scheduledAt = clamped;
     }
   }
-  return { ok: true, project_id: projectId, order_number: orderNumber, scheduled_at: scheduledAt };
+  return {
+    ok: true, project_id: projectId, order_number: orderNumber,
+    scheduled_at: scheduledAt, excluded_by: excludedBy || null,
+  };
 }
 
 function discardBatch(batchId) {

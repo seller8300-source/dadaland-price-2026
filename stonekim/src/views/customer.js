@@ -59,6 +59,7 @@ input[type=text]:focus,textarea:focus{border-color:var(--brand)}
 textarea{min-height:88px;resize:vertical;line-height:1.6}
 .consent{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.6;
   background:var(--brand-tint);border:1px solid #F7D9C7;border-radius:10px;padding:14px}
+.fhint{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5}
 .consent input{margin-top:3px;width:18px;height:18px;flex:0 0 18px;accent-color:var(--brand)}
 .privacy{margin-top:10px;font-size:11.5px;color:var(--muted);line-height:1.7}
 .submit{width:100%;margin-top:22px;padding:18px;border:0;border-radius:10px;background:var(--brand);color:#fff;
@@ -168,14 +169,28 @@ ${header('시공사진 등록', logoUrl)}
       <div class="privacy" style="margin-top:6px">전문적으로 촬영하지 않으셔도 됩니다.<br>공간 전체가 잘 보이도록 촬영해주세요.</div>
     </div>
 
+    <div class="section-title">🏢 시공업체 <span class="count">필수</span></div>
+    <div class="field">
+      <label class="f" for="contractor">시공업체명 <em>필수</em></label>
+      <input type="text" id="contractor" name="contractor" required value="${escapeHtml(project.contractor || '')}" placeholder="예) 스톤킴인테리어">
+      <div class="fhint">주문 내역과 맞춰보기 위해 꼭 적어주세요.</div>
+    </div>
+    <div class="field">
+      <label class="f" for="venue_name">업장명 · 상호 <em>선택</em></label>
+      <input type="text" id="venue_name" name="venue_name" value="${escapeHtml(project.venue_name || '')}" placeholder="예) 카페 스톤, OO치과">
+    </div>
+
+    <div class="section-title">🎁 상품권 받으실 곳</div>
+    <div class="field">
+      <label class="f" for="reward_phone">상품권 받을 번호 <em>선택</em></label>
+      <input type="tel" id="reward_phone" name="reward_phone" value="${escapeHtml(project.reward_phone || '')}" placeholder="비워두면 이 번호로 보내드려요" inputmode="numeric">
+      <div class="fhint">사장님이 아닌 다른 분이 받으셔야 하면 그 번호를 적어주세요.</div>
+    </div>
+
     <div class="section-title">✍️ 추가 정보 <span class="count">선택</span></div>
     <div class="field">
       <label class="f" for="region">현장지역</label>
       <input type="text" id="region" name="region" value="${escapeHtml(project.region || '')}" placeholder="예) 서울 강남구" inputmode="text">
-    </div>
-    <div class="field">
-      <label class="f" for="contractor">시공업체명 <em>선택</em></label>
-      <input type="text" id="contractor" name="contractor" value="${escapeHtml(project.contractor || '')}">
     </div>
     <div class="field">
       <label class="f" for="sns">인스타그램 / SNS 계정 <em>선택</em></label>
@@ -185,6 +200,12 @@ ${header('시공사진 등록', logoUrl)}
       <label class="f" for="review_text">간단한 시공후기 <em>선택</em></label>
       <textarea id="review_text" name="review_text" placeholder="사용해보신 느낌을 한두 줄만 남겨주세요.">${escapeHtml(project.review_text || '')}</textarea>
     </div>
+
+    <label class="consent" for="show_name" style="margin-top:4px">
+      <input type="checkbox" id="show_name" name="show_name_consent" value="1"${project.show_name_consent ? ' checked' : ''}>
+      <span><b>업체명·업장명을 함께 소개해 주세요.</b><br>
+        스톤킴 채널에 사례가 올라갈 때 업체명과 업장명을 같이 적어드립니다. 원하지 않으시면 체크하지 마세요.</span>
+    </label>
 
     <label class="consent" for="consent">
       <input type="checkbox" id="consent" name="consent" value="1">

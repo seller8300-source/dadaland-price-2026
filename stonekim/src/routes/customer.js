@@ -1,6 +1,6 @@
 'use strict';
 const { getDb, getSetting } = require('../db');
-const { nowIso } = require('../util');
+const { nowIso, normalizePhone } = require('../util');
 const http = require('../http');
 const multipart = require('../multipart');
 const photos = require('../photos');
@@ -118,6 +118,17 @@ async function submit(req, res, project, customer) {
   if (!parsed.fields.consent) {
     return fail('사진 활용 동의에 체크해 주세요.');
   }
+  // 주문 내역과 맞춰보려면 시공업체명이 있어야 한다.
+  const contractor = String(parsed.fields.contractor || '').trim();
+  if (!contractor) {
+    return fail('시공업체명을 입력해 주세요.');
+  }
+  // 상품권 받을 번호는 선택이지만, 적었다면 형식은 맞아야 한다.
+  const rewardPhoneRaw = String(parsed.fields.reward_phone || '').trim();
+  const rewardPhone = rewardPhoneRaw ? normalizePhone(rewardPhoneRaw) : null;
+  if (rewardPhoneRaw && !rewardPhone) {
+    return fail('상품권 받을 번호 형식이 올바르지 않습니다. (예: 010-1234-5678)');
+  }
 
   const files = parsed.files.filter((file) => file.field === 'photos');
   const validation = photos.validateFiles(files, { existingCount: 0, enforceMin: true });
@@ -139,12 +150,16 @@ async function submit(req, res, project, customer) {
     savedCount = validation.accepted.length;
     db.prepare(
       `UPDATE projects SET region = COALESCE(NULLIF(?, ''), region),
-              contractor = NULLIF(?, ''), sns = NULLIF(?, ''), review_text = NULLIF(?, ''),
+              contractor = ?, venue_name = NULLIF(?, ''), reward_phone = ?,
+              show_name_consent = ?, sns = NULLIF(?, ''), review_text = NULLIF(?, ''),
               consent_at = ?, consent_text = ?, updated_at = ?
         WHERE project_id = ?`
     ).run(
       String(parsed.fields.region || '').trim(),
-      String(parsed.fields.contractor || '').trim(),
+      contractor,
+      String(parsed.fields.venue_name || '').trim(),
+      rewardPhone,
+      parsed.fields.show_name_consent ? 1 : 0,
       String(parsed.fields.sns || '').trim(),
       String(parsed.fields.review_text || '').trim().slice(0, 2000),
       nowIso(),
