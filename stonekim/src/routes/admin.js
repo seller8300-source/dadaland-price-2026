@@ -356,7 +356,7 @@ async function actionSend(req, res, session, projectId) {
   const fields = await readFormBody(req, res);
   if (!fields) return true;
   if (!csrfOk(session, fields)) return http.redirect(res, flashUrl(`/admin/projects/${projectId}`, 'csrf'));
-  const type = ['FIRST', 'SECOND', 'FINAL'].includes(fields.type) ? fields.type : 'FIRST';
+  const type = ['GUIDE', 'FIRST', 'SECOND', 'FINAL'].includes(fields.type) ? fields.type : 'FIRST';
   const result = await scheduler.sendNow(projectId, type);
   audit(session, 'MANUAL_SEND', projectId, type, http.clientIp(req));
   if (!result.ok) return http.redirect(res, flashUrl(`/admin/projects/${projectId}`, 'excluded_blocked'));
@@ -583,6 +583,9 @@ function settingsPage(req, res, url, session) {
         test_phone: getSetting('test_phone'),
         exclude_list: getSetting('exclude_list'),
         dedupe_days: getSetting('dedupe_days'),
+        spec_enabled: getSetting('spec_enabled'),
+        spec_link: getSetting('spec_link'),
+        spec_groups: getSetting('spec_groups'),
       },
       audits,
       provider: messaging.providerLabel(),
@@ -626,6 +629,10 @@ async function settingsSave(req, res, session) {
     .filter(Boolean);
   setSetting('exclude_list', excludes.join('\n'));
   setSetting('dedupe_days', Math.max(0, Math.min(365, Math.round(Number(fields.dedupe_days) || 0))));
+  setSetting('spec_enabled', fields.spec_enabled ? '1' : '0');
+  setSetting('spec_link', String(fields.spec_link || '').trim().slice(0, 500));
+  setSetting('spec_groups', String(fields.spec_groups || '')
+    .split(/[\r\n]+/).map((line) => line.trim()).filter(Boolean).join('\n'));
   audit(session, 'SETTINGS_UPDATE', null, null, http.clientIp(req));
   return http.redirect(res, flashUrl('/admin/settings', 'saved'));
 }
@@ -676,7 +683,7 @@ async function testSend(req, res, session) {
   if (!scheduler.isAllowed(phone)) {
     return http.redirect(res, flashUrl('/admin/settings', 'test_not_allowed'));
   }
-  const type = ['FIRST', 'SECOND', 'FINAL'].includes(fields.type) ? fields.type : 'FIRST';
+  const type = ['GUIDE', 'FIRST', 'SECOND', 'FINAL'].includes(fields.type) ? fields.type : 'FIRST';
   // 테스트 발송도 실제로 열리는 링크를 보낸다. 존재하지 않는 토큰을 보내면
   // 고객 화면이 '유효하지 않은 링크'로 뜨기 때문에 테스트 의미가 없다.
   const project = ensureTestProject(phone);

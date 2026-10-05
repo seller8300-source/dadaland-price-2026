@@ -265,7 +265,7 @@ function commitBatch(batchId, options = {}) {
   if (batch.status === 'COMMITTED') return { ok: false, error: '이미 등록된 업로드입니다.' };
 
   const now = new Date();
-  const result = { created: 0, skipped: 0, scheduled: 0, deferred: 0, canceled: 0, canceled_by_phone: 0, cancel_unmatched: 0, excluded_by_list: 0, errors: [] };
+  const result = { created: 0, skipped: 0, scheduled: 0, deferred: 0, canceled: 0, canceled_by_phone: 0, cancel_unmatched: 0, excluded_by_list: 0, spec_guided: 0, errors: [] };
   const insertProject = db.prepare(
     `INSERT INTO projects
       (order_number, customer_id, product, quantity, ship_date, installation_date,
@@ -315,6 +315,8 @@ function commitBatch(batchId, options = {}) {
       result.created++;
 
       if (!hold) {
+        // 시방서는 앞으로 출고될 건에만 (지난 출고건은 이미 시공이 끝났을 수 있다)
+        if (scheduler.scheduleSpecGuide(projectId, now)) result.spec_guided++;
         const messageId = scheduler.scheduleFirstMessage(projectId);
         if (messageId) {
           const message = db.prepare('SELECT scheduled_at FROM messages WHERE message_id = ?').get(messageId);
@@ -427,7 +429,9 @@ function createManualProject(input, options = {}) {
   const projectId = db.prepare('SELECT last_insert_rowid() AS id').get().id;
 
   let scheduledAt = null;
+  let specGuided = false;
   if (!hold) {
+    specGuided = !!scheduler.scheduleSpecGuide(projectId);
     const messageId = scheduler.scheduleFirstMessage(projectId);
     if (messageId) {
       const message = db.prepare('SELECT scheduled_at FROM messages WHERE message_id = ?').get(messageId);
@@ -440,7 +444,7 @@ function createManualProject(input, options = {}) {
   }
   return {
     ok: true, project_id: projectId, order_number: orderNumber,
-    scheduled_at: scheduledAt, excluded_by: excludedBy || null,
+    scheduled_at: scheduledAt, excluded_by: excludedBy || null, spec_guided: specGuided,
   };
 }
 

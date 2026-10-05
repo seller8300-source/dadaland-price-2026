@@ -288,7 +288,7 @@ const REWARD_BADGE = {
   EXCLUDED: ['지급제외', 'b-gray'],
 };
 
-const TYPE_LABEL = { FIRST: '1차', SECOND: '2차', FINAL: '최종', TEST: '테스트', MANUAL: '수동' };
+const TYPE_LABEL = { GUIDE: '시방서', FIRST: '1차', SECOND: '2차', FINAL: '최종', TEST: '테스트', MANUAL: '수동' };
 
 function badge(map, key, fallback = ['-', 'b-gray']) {
   const [label, cls] = map[key] || fallback;
@@ -556,6 +556,10 @@ function projectDetailPage({ project, customer, photos, messages, reward, reward
 <div class="card">
   <h2>관리자 수동 제어</h2>
   <div class="row">
+    <form method="post" action="/admin/projects/${project.project_id}/send" class="inline">
+      ${csrf}<input type="hidden" name="type" value="GUIDE">
+      <button class="btn sm ghost" type="submit">📄 지금 시방서 발송</button>
+    </form>
     <form method="post" action="/admin/projects/${project.project_id}/send" class="inline">
       ${csrf}<input type="hidden" name="type" value="FIRST">
       <button class="btn sm" type="submit">지금 1차 발송</button>
@@ -929,8 +933,32 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
         <div class="hint">값이 있으면 <b>그 번호에만</b> 발송됩니다. 실전 테스트 중에는 대표님 번호만 넣어 두세요.<br>
           나머지 주문의 예약은 취소되지 않고 그대로 대기합니다.</div></div>
     </div>
-    <div class="row">
-      <div class="field" style="margin:0;flex:1"><label>발송 제외 명단 (대리점 · 파트너 등)</label>
+  </div>
+</div>
+
+<div class="card">
+  <h2>📄 시방서 안내 <span class="sub">주문 등록 즉시 · 앞으로 출고될 건만</span></h2>
+  <div class="row" style="margin-bottom:12px">
+    <label class="row" style="gap:7px;cursor:pointer;font-weight:600">
+      <input type="checkbox" name="spec_enabled" value="1"${settings.spec_enabled === '1' ? ' checked' : ''}
+        style="width:17px;height:17px;accent-color:var(--brand)">
+      시방서 안내 자동 발송 켜기
+    </label>
+  </div>
+  <div class="field"><label>시방서 링크</label>
+    <input type="text" name="spec_link" value="${escapeHtml(settings.spec_link || '')}" placeholder="https://stonekim.kr/..." style="width:100%;max-width:520px">
+    <div class="hint">제품군 탭이 들어 있는 그 페이지 주소입니다. 비어 있으면 켜 두어도 발송하지 않습니다.</div></div>
+  <div class="field" style="margin-bottom:0"><label>제품군 판별 (한 줄에 <code>품목코드=제품군</code>)</label>
+    <textarea name="spec_groups" rows="4" placeholder="SF=소프트스톤&#10;IP=콕스톤">${escapeHtml(settings.spec_groups || '')}</textarea>
+    <div class="hint">품목명에 그 코드가 들어 있으면 해당 제품군으로 봅니다. <code>SF</code> 한 줄이면 <code>SF20-2</code>, <code>SF29</code> 까지 걸립니다.<br>
+      긴 코드를 먼저 보므로 <code>SF20-2=콕스톤</code> 처럼 예외를 따로 둘 수도 있습니다.
+      못 찾으면 메시지에 <b>“주문하신 제품”</b> 으로 나갑니다.</div></div>
+</div>
+
+<div class="card">
+  <h2>안전장치</h2>
+  <div class="row">
+    <div class="field" style="margin:0;flex:1"><label>발송 제외 명단 (대리점 · 파트너 등)</label>
         <textarea name="exclude_list" rows="4" placeholder="한 줄에 하나씩&#10;010-1111-2222&#10;스톤킴대리점&#10;OO파트너스">${escapeHtml(settings.exclude_list || '')}</textarea>
         <div class="hint">휴대폰번호 또는 <b>거래처명·현장명에 들어가는 말</b>을 적습니다.
           여기에 걸리면 등록은 되지만 자동 발송에서 빠집니다 (주문 상세에 사유가 남습니다).<br>

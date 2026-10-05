@@ -11,6 +11,7 @@ const reward = require('./reward');
  */
 
 const TYPE_LABEL = {
+  GUIDE: '시방서',
   FIRST: '1차',
   SECOND: '2차',
   FINAL: '최종',
@@ -19,6 +20,7 @@ const TYPE_LABEL = {
 };
 
 const BUTTON_LABEL = {
+  GUIDE: '시방서 확인하기',
   FIRST: '시공사진 등록하기',
   SECOND: '사진 등록하고 리워드 신청하기',
   FINAL: '시공사진 등록하기',
@@ -148,6 +150,32 @@ function buildBody(messageType, uploadUrl, tiers = reward.current(), variant = c
 }
 
 /** 설정에 저장된 문구 유형 (reward | info) */
+
+/**
+ * 시방서 안내 (출고 직후).
+ * 혜택·금액이 없는 순수 정보성이라 리워드/정보성 구분 없이 한 가지만 쓴다.
+ * 승인된 알림톡 템플릿과 문구를 맞춰 둔다.
+ */
+function guide(url, productGroup) {
+  return [
+    '안녕하세요, 스톤킴입니다😊',
+    '',
+    '주문해주셔서 진심으로 감사합니다.',
+    '',
+    '제품 시공 방법에 대한 시방서를 보내드리오니,',
+    '시공 전 아래 시방서를 꼭 확인해 주세요.',
+    '자재 보관, 재단, 접착, 마감 주의사항이 담겨 있습니다.',
+    '',
+    `▶ 시방서 종류: ${productGroup}`,
+    '',
+    '그 외에 궁금하신 사항이 있으시면 언제든지 연락주세요.',
+    '',
+    '문의: 1866-1338',
+    '',
+    `▶ 시방서 확인하기: ${url}`,
+  ].join('\n');
+}
+
 function currentVariant() {
   const { getSetting } = require('./db');
   return variantOf(getSetting('message_variant', 'reward'));
@@ -160,6 +188,7 @@ function currentVariant() {
  */
 function templateCode(messageType) {
   const env = {
+    GUIDE: process.env.STONEKIM_TPL_GUIDE,
     FIRST: process.env.STONEKIM_TPL_FIRST,
     SECOND: process.env.STONEKIM_TPL_SECOND,
     FINAL: process.env.STONEKIM_TPL_FINAL,
@@ -167,4 +196,4 @@ function templateCode(messageType) {
   return env[messageType] || null;
 }
 
-module.exports = { buildBody, templateCode, currentVariant, variantOf, VARIANTS, TYPE_LABEL, BUTTON_LABEL };
+module.exports = { buildBody, guide, templateCode, currentVariant, variantOf, VARIANTS, TYPE_LABEL, BUTTON_LABEL };

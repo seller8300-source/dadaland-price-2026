@@ -3,10 +3,11 @@ const { getDb, getSetting } = require('./db');
 const { deliver } = require('./messaging');
 const templates = require('./templates');
 const rewardTiers = require('./reward');
+const spec = require('./spec');
 const { dateStringPlusDays, isoPlusDaysAtHour, nowIso, toDateString, normalizePhone } = require('./util');
 
 /** 발송 단계 전이: 1차 → (+7일) 2차 → (+14일) 최종 → 종료 */
-const NEXT_TYPE = { FIRST: 'SECOND', SECOND: 'FINAL', FINAL: null };
+const NEXT_TYPE = { GUIDE: null, FIRST: 'SECOND', SECOND: 'FINAL', FINAL: null };
 const FOLLOWUP_DAYS = { SECOND: 7, FINAL: 14 };
 const SENT_STATUS = { FIRST: 'SENT_1', SECOND: 'SENT_2', FINAL: 'SENT_FINAL' };
 const STAGE_ORDER = { FIRST: 1, SECOND: 2, FINAL: 3 };
@@ -184,6 +185,30 @@ function scheduleFirstMessage(projectId) {
   return insertScheduled(projectId, 'FIRST', at);
 }
 
+
+/**
+ * 시방서 안내 예약 (주문 등록 직후).
+ * 이미 출고된 과거 건에 "시공 전 확인하세요" 를 보내면 안 되므로
+ * 출고(예정)일이 오늘 이후인 주문에만 예약한다.
+ */
+function scheduleSpecGuide(projectId, now = new Date()) {
+  if (!spec.enabled()) return null;
+  const project = getProject(projectId);
+  if (!project) return null;
+  if (project.message_excluded) return null;
+  if (STOP_STATUSES.has(project.status)) return null;
+  // 앞으로 출고될 건만. 지난 출고건은 이미 시공이 끝났을 수 있다.
+  if (!project.ship_date || project.ship_date < toDateString(now)) return null;
+
+  const existing = getDb()
+    .prepare("SELECT COUNT(*) AS c FROM messages WHERE project_id = ? AND message_type = 'GUIDE'")
+    .get(projectId);
+  if (existing.c > 0) return null;
+
+  // 자재를 받자마자 봐야 하므로 다음 발송창에 바로 내보낸다.
+  return insertScheduled(projectId, 'GUIDE', nowIso());
+}
+
 /** 다음 단계 메시지 예약 (직전 발송 완료 직후 호출) */
 function scheduleFollowUp(projectId, prevType, prevSentAt) {
   const nextType = NEXT_TYPE[prevType];
@@ -275,9 +300,13 @@ async function sendScheduledMessage(row) {
     }
   }
 
-  const link = uploadUrl(project.upload_token);
+  const isGuide = row.message_type === 'GUIDE';
+  const productGroup = isGuide ? spec.groupFor(project.product) : null;
+  const link = isGuide ? spec.link() : uploadUrl(project.upload_token);
   const tiers = rewardTiers.current();
-  const body = templates.buildBody(row.message_type, link, tiers);
+  const body = isGuide
+    ? templates.guide(link, productGroup)
+    : templates.buildBody(row.message_type, link, tiers);
   // 승인된 알림톡 템플릿의 치환변수 (템플릿 등록 시 아래 이름으로 신청한다)
   const variables = {
     '#{고객명}': row.customer_name || '고객',
@@ -285,6 +314,8 @@ async function sendScheduledMessage(row) {
     '#{링크}': link,
     '#{최대리워드}': tiers.maxWords,
   };
+  // 시방서 템플릿은 제품군만 쓴다. 빈 값으로 보내면 카카오가 발송을 거부한다.
+  if (isGuide) variables['#{제품군}'] = productGroup || spec.FALLBACK;
   const result = await deliver({ phone: row.phone, body, messageType: row.message_type, variables });
   const sentAt = nowIso();
   markMessage(row.message_id, result, body, sentAt, row.phone);
@@ -434,6 +465,7 @@ module.exports = {
   computeFirstScheduleAt,
   computeFollowUpAt,
   scheduleFirstMessage,
+  scheduleSpecGuide,
   scheduleFollowUp,
   cancelScheduled,
   dueMessages,
