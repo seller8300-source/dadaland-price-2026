@@ -812,3 +812,38 @@ test('같은 번호로 최근에 보냈으면 1차를 다시 보내지 않는다
   assert.equal(scheduler.recentSendTo('01044445555'), null);
   setSetting('dedupe_days', '30');
 });
+
+
+test('등록 완료 화면은 금액을 다시 홍보하지 않고 받는 방법만 알려준다', async () => {
+  const { setSetting } = require('../src/db');
+  setSetting('done_notice', '백화점 상품권은 영업일 기준 5~14일 이내 순차 발송해 드립니다.\n베스트 시공 사례로 선정되시면 담당자가 따로 연락드리겠습니다.');
+
+  const { token } = seedProject('SK940');
+  const { body, contentType } = buildMultipart(
+    { consent: '1', contractor: '스톤인테리어' },
+    [1, 2, 3].map((i) => ({ field: 'photos', filename: `d${i}.jpg`, data: jpegBytes(300) })));
+  await fetch(`${base}/project/upload/${token}`, {
+    method: 'POST', headers: { 'Content-Type': contentType }, body, redirect: 'manual',
+  });
+
+  const html = await (await fetch(`${base}/project/upload/${token}/done`)).text();
+  assert.match(html, /5~14일 이내 순차 발송/);
+  assert.match(html, /베스트 시공 사례로 선정되시면/);
+  assert.match(html, /등록된 사진 3장/);
+  // 이미 등록을 끝낸 고객에게 금액을 다시 들이밀지 않는다
+  assert.doesNotMatch(html, /3만원/);
+  assert.doesNotMatch(html, /사진만 등록하셔도/);
+});
+
+test('고객 화면에 필수·선택 표시와 전화번호 입력 제한이 들어간다', async () => {
+  const { token } = seedProject('SK941');
+  const html = await (await fetch(`${base}/project/upload/${token}`)).text();
+
+  assert.match(html, /업체명·업장명을 함께 소개해 주세요\. <em class="opt">\(선택\)<\/em>/);
+  assert.match(html, /<b class="req">\(필수\)<\/b>/);
+  // 상품권 번호: 11자리(하이픈 포함 13자) 제한 + 가득 찬 너비
+  assert.match(html, /id="reward_phone"[^>]*maxlength="13"/);
+  assert.match(html, /id="reward_phone"[^>]*placeholder="010-0000-0000"/);
+  // 사진 장수 초과 안내를 띄울 자리
+  assert.match(html, /id="picknote"/);
+});

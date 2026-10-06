@@ -572,6 +572,7 @@ function settingsPage(req, res, url, session) {
         reward_headline: getSetting('reward_headline'),
         reward_benefits: getSetting('reward_benefits'),
         reward_criteria_text: getSetting('reward_criteria_text'),
+        done_notice: getSetting('done_notice'),
         brand_logo_url: getSetting('brand_logo_url'),
         daily_send_limit: getSetting('daily_send_limit'),
         send_stages: String(scheduler.stageLimit()),
@@ -601,7 +602,7 @@ async function settingsSave(req, res, session) {
   const fields = await readFormBody(req, res);
   if (!fields) return true;
   if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/settings', 'csrf'));
-  const textKeys = ['consent_text', 'privacy_text', 'reward_criteria_text', 'reward_headline', 'reward_benefits'];
+  const textKeys = ['consent_text', 'privacy_text', 'reward_criteria_text', 'reward_headline', 'reward_benefits', 'done_notice'];
   for (const key of textKeys) {
     if (fields[key] !== undefined) setSetting(key, String(fields[key]).slice(0, 2000));
   }

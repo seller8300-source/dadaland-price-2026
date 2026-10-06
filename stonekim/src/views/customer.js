@@ -59,6 +59,17 @@ input[type=text]:focus,textarea:focus{border-color:var(--brand)}
 textarea{min-height:88px;resize:vertical;line-height:1.6}
 .consent{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.6;
   background:var(--brand-tint);border:1px solid #F7D9C7;border-radius:10px;padding:14px}
+.donenote{list-style:none;text-align:left;margin:26px 20px 0;padding:0;display:flex;flex-direction:column;gap:11px}
+.donenote li{position:relative;padding:14px 16px 14px 42px;background:var(--brand-tint);border:1px solid #F7D9C7;
+  border-radius:11px;font-size:14px;line-height:1.6;color:#4A2810}
+.donenote li::before{content:'✓';position:absolute;left:15px;top:14px;width:18px;height:18px;border-radius:50%;
+  background:var(--brand);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.consent .opt{font-style:normal;font-weight:600;color:var(--muted);font-size:12.5px}
+.consent .req{color:var(--brand);font-weight:800}
+.picknote{display:none;margin-top:10px;padding:11px 13px;border-radius:9px;font-size:13.5px;line-height:1.5}
+.picknote.on{display:block}
+.picknote.warn{background:#FFF4E8;border:1px solid #F3D3B2;color:#A85A00;font-weight:600}
+.picknote.busy{background:var(--brand-tint);border:1px solid #F7D9C7;color:#A33800;font-weight:600}
 .fhint{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5}
 .consent input{margin-top:3px;width:18px;height:18px;flex:0 0 18px;accent-color:var(--brand)}
 .privacy{margin-top:10px;font-size:11.5px;color:var(--muted);line-height:1.7}
@@ -160,6 +171,7 @@ ${header('시공사진 등록', logoUrl)}
       <div class="label">사진 추가하기</div>
       <div class="hint">최소 ${minPhotos}장 · 최대 ${maxPhotos}장 (여러 장 선택 가능)</div>
     </label>
+    <div class="picknote" id="picknote"></div>
     <input type="file" id="files" name="photos" accept="image/*,.heic,.heif" multiple style="display:none">
     <div class="thumbs" id="thumbs"></div>
 
@@ -183,7 +195,8 @@ ${header('시공사진 등록', logoUrl)}
     <div class="section-title">🎁 상품권 받으실 곳</div>
     <div class="field">
       <label class="f" for="reward_phone">상품권 받을 번호 <em>선택</em></label>
-      <input type="tel" id="reward_phone" name="reward_phone" value="${escapeHtml(project.reward_phone || '')}" placeholder="비워두면 이 번호로 보내드려요" inputmode="numeric">
+      <input type="tel" id="reward_phone" name="reward_phone" value="${escapeHtml(project.reward_phone || '')}"
+        placeholder="010-0000-0000" inputmode="numeric" autocomplete="tel" maxlength="13" style="width:100%">
       <div class="fhint">사장님이 아닌 다른 분이 받으셔야 하면 그 번호를 적어주세요.</div>
     </div>
 
@@ -203,13 +216,13 @@ ${header('시공사진 등록', logoUrl)}
 
     <label class="consent" for="show_name" style="margin-top:4px">
       <input type="checkbox" id="show_name" name="show_name_consent" value="1"${project.show_name_consent ? ' checked' : ''}>
-      <span><b>업체명·업장명을 함께 소개해 주세요.</b><br>
+      <span><b>업체명·업장명을 함께 소개해 주세요. <em class="opt">(선택)</em></b><br>
         스톤킴 채널에 사례가 올라갈 때 업체명과 업장명을 같이 적어드립니다. 원하지 않으시면 체크하지 마세요.</span>
     </label>
 
     <label class="consent" for="consent">
       <input type="checkbox" id="consent" name="consent" value="1">
-      <span>${escapeHtml(consentText)}</span>
+      <span><b class="req">(필수)</b> ${escapeHtml(consentText)}</span>
     </label>
     <div class="privacy">${escapeHtml(privacyText)}</div>
 
@@ -243,6 +256,9 @@ function uploadScript(minPhotos, maxPhotos) {
 
   function showErr(m){ err.textContent=m; err.classList.add('on'); err.scrollIntoView({block:'center',behavior:'smooth'}); }
   function clearErr(){ err.classList.remove('on'); }
+  var picknote=document.getElementById('picknote');
+  function note(kind,m){ picknote.textContent=m; picknote.className='picknote on '+kind; }
+  function clearNote(){ picknote.className='picknote'; }
   function render(){
     thumbs.innerHTML='';
     picked.forEach(function(item,i){
@@ -279,17 +295,45 @@ function uploadScript(minPhotos, maxPhotos) {
     });
   }
 
+  // 상품권 받을 번호: 숫자만 11자리까지 받고 010-0000-0000 모양으로 맞춰준다
+  var rp=document.getElementById('reward_phone');
+  if(rp){
+    rp.addEventListener('input', function(){
+      var d=rp.value.replace(/[^0-9]/g,'').slice(0,11);
+      rp.value = d.length<4 ? d
+        : d.length<8 ? d.slice(0,3)+'-'+d.slice(3)
+        : d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);
+    });
+  }
+
   input.addEventListener('change', async function(){
     clearErr();
     var files=Array.prototype.slice.call(input.files||[]);
     input.value='';
-    for(var i=0;i<files.length;i++){
-      if(picked.length>=MAX){ showErr('사진은 최대 '+MAX+'장까지 등록할 수 있습니다.'); break; }
-      var f=files[i];
+    if(!files.length) return;
+
+    // 사진이 많으면 압축에 몇 초씩 걸린다. 아무 표시가 없으면 멈춘 것처럼 보인다.
+    var room=MAX-picked.length, over=files.length-room;
+    var busy=files.slice(0, Math.max(0,room));
+    var done=0;
+    if(busy.length>1) note('busy','사진을 준비하고 있습니다… ('+done+'/'+busy.length+')');
+
+    for(var i=0;i<busy.length;i++){
+      var f=busy[i];
       if(f.size>20*1024*1024 && !/^image\\//.test(f.type)){ showErr('이미지 파일만 등록할 수 있습니다.'); continue; }
       var out=await compress(f);
       picked.push({file:out, url:URL.createObjectURL(out)});
+      done++;
+      if(busy.length>1) note('busy','사진을 준비하고 있습니다… ('+done+'/'+busy.length+')');
       render();
+    }
+
+    if(over>0){
+      note('warn','사진은 최대 '+MAX+'장까지 등록할 수 있습니다. 먼저 고르신 '+picked.length+'장만 등록되었고 나머지 '+over+'장은 제외했습니다.');
+    } else if(picked.length>=MAX){
+      note('warn','최대 '+MAX+'장까지 등록하셨습니다. 더 올리시려면 사진을 먼저 지워주세요.');
+    } else {
+      clearNote();
     }
   });
 
@@ -324,20 +368,23 @@ function uploadScript(minPhotos, maxPhotos) {
 }
 
 /** 제출 완료 화면 */
-function donePage({ photoCount, reward, logoUrl }) {
+function donePage({ photoCount, notice, logoUrl }) {
+  // 이미 등록을 끝낸 고객이므로 금액을 다시 홍보하지 않고,
+  // 언제 어떻게 받는지만 알려준다.
+  const lines = String(notice || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
   const body = `
 ${header('시공사진 등록', logoUrl)}
 <div class="done">
   <div class="mark">🎉</div>
   <h1>사진이 정상적으로 등록되었습니다.</h1>
-  <p>소중한 시공사진 감사합니다.<br>확인 후 등록하신 연락처로 지급 안내를 드리겠습니다.</p>
-  ${photoCount ? `<p style="margin-top:18px;font-size:13px">등록된 사진 ${photoCount}장</p>` : ''}
+  <p>소중한 시공사진 감사합니다.</p>
+  ${photoCount ? `<p style="margin-top:16px;font-size:13px">등록된 사진 ${photoCount}장</p>` : ''}
   ${
-    reward
-      ? `<div class="reward" style="text-align:left;margin:26px 20px 0">
-           <div class="rh" style="font-size:15px">${escapeHtml(reward.headline).replace(/\n/g, '<br>')}</div>
-           <div class="rc" style="border:0;padding-top:8px;margin-top:6px">${escapeHtml(reward.criteria)}</div>
-         </div>`
+    lines.length
+      ? `<ul class="donenote">${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`
       : ''
   }
 </div>`;

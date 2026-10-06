@@ -906,6 +906,12 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
       <textarea name="reward_criteria_text">${escapeHtml(settings.reward_criteria_text)}</textarea>
     </div>
     <div class="field">
+      <label>등록 완료 화면 안내 (한 줄에 하나씩)</label>
+      <textarea name="done_notice">${escapeHtml(settings.done_notice || '')}</textarea>
+      <div class="hint">사진 등록을 마친 고객에게 보이는 문구입니다. 이미 등록을 끝낸 고객이라
+        금액을 다시 강조하지 않고 <b>언제·어떻게 받는지</b>만 적는 게 좋습니다.</div>
+    </div>
+    <div class="field">
       <label>로고 이미지 주소 (비우면 STONE KIM 글자 로고)</label>
       <input type="text" name="brand_logo_url" value="${escapeHtml(settings.brand_logo_url)}" placeholder="https://stonekim.kr/logo.png" style="width:100%;max-width:520px">
     </div>
