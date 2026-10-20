@@ -118,23 +118,27 @@ function dedupeDays() {
  * 같은 번호로 최근에 이미 보냈는지 본다 (한 업체가 여러 건 주문해도 반복 발송하지 않는다).
  * @returns {{project_id:number, sent_at:string}|null} 최근 발송 건
  */
-function recentSendTo(phone, exceptProjectId = null) {
+function recentSendTo(phone, exceptProjectId = null, messageType = 'FIRST') {
   const days = dedupeDays();
   if (!days || !phone) return null;
   const since = new Date(Date.now() - days * 86400000).toISOString();
+  // 시방서는 시방서끼리, 사진 요청은 사진 요청끼리 센다.
+  // 시방서를 받았다고 사진 요청까지 막으면 안 된다.
+  const types = messageType === 'GUIDE' ? ['GUIDE'] : ['FIRST', 'SECOND', 'FINAL'];
+  const placeholders = types.map(() => '?').join(',');
   return (
     getDb()
       .prepare(
-        `SELECT m.project_id, m.sent_at FROM messages m
+        `SELECT m.project_id, m.sent_at, m.message_type FROM messages m
            JOIN projects p ON p.project_id = m.project_id
            JOIN customers c ON c.customer_id = p.customer_id
           WHERE c.phone = ? AND m.status IN ('SENT','SENT_SMS')
-            AND m.message_type IN ('FIRST','SECOND','FINAL')
+            AND m.message_type IN (${placeholders})
             AND m.sent_at >= ?
             AND (? IS NULL OR m.project_id != ?)
           ORDER BY m.sent_at DESC LIMIT 1`
       )
-      .get(normalizePhone(phone), since, exceptProjectId, exceptProjectId) || null
+      .get(normalizePhone(phone), ...types, since, exceptProjectId, exceptProjectId) || null
   );
 }
 
@@ -226,13 +230,26 @@ function scheduleFollowUp(projectId, prevType, prevSentAt) {
  * 사진 등록 시(CANCELED_PHOTO) 또는 관리자 중단 시(CANCELED_ADMIN) 호출.
  * @returns {number} 취소된 건수
  */
-function cancelScheduled(projectId, reason = 'CANCELED_PHOTO', note = null) {
-  const res = getDb()
-    .prepare(
-      `UPDATE messages SET status = ?, failure_reason = COALESCE(?, failure_reason)
-       WHERE project_id = ? AND status = 'SCHEDULED'`
-    )
-    .run(reason, note, projectId);
+/**
+ * 예약된 메시지를 취소한다.
+ * onlyType 을 주면 그 단계만 취소한다. 시방서를 건너뛸 때 사진 요청까지
+ * 같이 꺼지면 안 되므로 단계를 구분해야 한다.
+ */
+function cancelScheduled(projectId, reason = 'CANCELED_PHOTO', note = null, onlyType = null) {
+  const db = getDb();
+  const res = onlyType
+    ? db
+        .prepare(
+          `UPDATE messages SET status = ?, failure_reason = COALESCE(?, failure_reason)
+           WHERE project_id = ? AND status = 'SCHEDULED' AND message_type = ?`
+        )
+        .run(reason, note, projectId, onlyType)
+    : db
+        .prepare(
+          `UPDATE messages SET status = ?, failure_reason = COALESCE(?, failure_reason)
+           WHERE project_id = ? AND status = 'SCHEDULED'`
+        )
+        .run(reason, note, projectId);
   return res.changes;
 }
 
@@ -287,14 +304,16 @@ async function sendScheduledMessage(row) {
   if (!isAllowed(row.phone)) {
     return { skipped: 'NOT_ALLOWLISTED' };
   }
-  // 같은 업체가 여러 건 주문했다고 똑같은 요청을 여러 번 받게 하지 않는다.
-  if (row.message_type === 'FIRST') {
-    const recent = recentSendTo(row.phone, row.project_id);
+  // 같은 업체가 여러 건 주문했다고 똑같은 메시지를 여러 번 받게 하지 않는다.
+  // 시방서도 매번 같은 링크라서 반복해 보낼 이유가 없다.
+  if (row.message_type === 'FIRST' || row.message_type === 'GUIDE') {
+    const recent = recentSendTo(row.phone, row.project_id, row.message_type);
     if (recent) {
       cancelScheduled(
         project.project_id,
         'CANCELED_ADMIN',
-        `최근 ${dedupeDays()}일 내 같은 번호로 발송한 건이 있어 생략`
+        `최근 ${dedupeDays()}일 내 같은 번호로 발송한 건이 있어 생략`,
+        row.message_type
       );
       return { skipped: 'DUPLICATE_RECENT' };
     }

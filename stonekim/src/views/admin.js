@@ -828,6 +828,12 @@ ${
     ? `<div class="flash info">취소(마이너스) 전표 ${summary.canceled}건이 있습니다. 등록하면 해당 주문의 자동 발송을 중단합니다.</div>`
     : ''
 }
+${
+  summary.duplicate_phone
+    ? `<div class="flash info">같은 번호로 이미 보냈거나 파일 안에서 번호가 겹치는 건이 ${summary.duplicate_phone}건 있습니다.
+         등록은 되지만 <b>1차 메시지는 한 번만</b> 나갑니다. 한 업체가 여러 건 주문해도 같은 요청을 반복해서 받지 않습니다.</div>`
+    : ''
+}
 ${summary.other ? `<div class="flash err">기타 오류 ${summary.other}건은 등록되지 않습니다.</div>` : ''}
 <div class="card">
   <form method="post" action="/admin/import/${batch.batch_id}/commit" class="row">

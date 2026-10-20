@@ -155,3 +155,65 @@ test('시방서는 사진 요청과 섞이지 않는다', async () => {
     'SCHEDULED'
   );
 });
+
+
+test('중복 번호 미전송이 기본값이다', () => {
+  const { getSetting } = require('../src/db');
+  // 설정을 건드리지 않은 상태에서 이미 켜져 있어야 한다
+  assert.equal(getSetting('dedupe_days'), '30');
+  assert.equal(scheduler.dedupeDays(), 30);
+});
+
+test('시방서도 같은 번호로 반복해 보내지 않는다', async () => {
+  const { setSetting } = require('../src/db');
+  const db = getDb();
+  setSetting('spec_enabled', '1');
+  setSetting('spec_link', 'https://stonekim.kr/spec');
+  setSetting('send_allowlist', '');
+  setSetting('dedupe_days', '30');
+
+  const first = importer.createManualProject({
+    order_number: 'DUP-SPEC-1', customer_name: '반복업체', phone: '010-2200-3300',
+    ship_date: today(5), product: '[SF]S-S013',
+  });
+  const second = importer.createManualProject({
+    order_number: 'DUP-SPEC-2', customer_name: '반복업체', phone: '010-2200-3300',
+    ship_date: today(6), product: '[SF]S-S013',
+  });
+  assert.equal(first.spec_guided, true);
+  assert.equal(second.spec_guided, true, '예약은 둘 다 잡힌다');
+
+  // 첫 건 시방서 발송
+  assert.equal((await scheduler.sendNow(first.project_id, 'GUIDE')).ok, true);
+
+  // 두 번째 건은 예약 시각이 와도 건너뛴다
+  db.prepare("UPDATE messages SET scheduled_at = ? WHERE project_id = ? AND message_type = 'GUIDE'")
+    .run(new Date(Date.now() - 60000).toISOString(), second.project_id);
+  const results = await scheduler.processDue(new Date());
+  assert.ok(results.some((r) => r.skipped === 'DUPLICATE_RECENT'), '시방서 중복은 건너뛴다');
+
+  // 사진 요청(1차)까지 같이 꺼지면 안 된다
+  const firstStage = db
+    .prepare("SELECT status FROM messages WHERE project_id = ? AND message_type = 'FIRST'")
+    .get(second.project_id);
+  assert.equal(firstStage.status, 'SCHEDULED', '시방서를 건너뛴다고 사진 요청까지 끄면 안 된다');
+});
+
+test('시방서를 받았다고 사진 요청이 막히지 않는다', async () => {
+  const { setSetting } = require('../src/db');
+  setSetting('send_allowlist', '');
+  const made = importer.createManualProject({
+    order_number: 'SPEC-THEN-FIRST', customer_name: '순서확인', phone: '010-2200-4400',
+    ship_date: today(5), product: '[SF]S-S013',
+  });
+  assert.equal((await scheduler.sendNow(made.project_id, 'GUIDE')).ok, true);
+
+  // 시방서를 보낸 직후에도 사진 요청은 정상적으로 나가야 한다
+  const photo = await scheduler.sendNow(made.project_id, 'FIRST');
+  assert.equal(photo.ok, true);
+  assert.notEqual(photo.skipped, 'DUPLICATE_RECENT');
+  const sent = getDb()
+    .prepare("SELECT status FROM messages WHERE project_id = ? AND message_type = 'FIRST'")
+    .get(made.project_id).status;
+  assert.match(sent, /^SENT/);
+});

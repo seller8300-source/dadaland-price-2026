@@ -107,6 +107,7 @@ function parseUpload(buffer, fileName, options = {}) {
     ? getDb().prepare('SELECT project_id FROM projects WHERE order_number = ?')
     : null;
   const seen = new Map();
+  const seenPhones = new Map();
   const rows = [];
 
   for (let i = headerIndex + 1; i < table.length; i++) {
@@ -164,6 +165,27 @@ function parseUpload(buffer, fileName, options = {}) {
     if (installRaw && !record.installation_date) {
       warnings.push({ code: 'BAD_INSTALL_DATE', text: '시공예정일 형식 오류 (미입력 처리)' });
     }
+    // 같은 번호로 최근에 이미 보냈으면 1차가 생략된다. 등록 전에 미리 알려준다.
+    if (checkExisting && record.phone) {
+      const recent = scheduler.recentSendTo(record.phone, null, 'FIRST');
+      if (recent) {
+        warnings.push({
+          code: 'DUPLICATE_PHONE',
+          text: `최근 ${scheduler.dedupeDays()}일 내 발송 이력 — 1차는 생략됩니다`,
+        });
+      }
+    }
+    // 같은 파일 안에서 번호가 겹쳐도 한 번만 나간다
+    if (record.phone) {
+      if (seenPhones.has(record.phone)) {
+        warnings.push({
+          code: 'DUPLICATE_IN_FILE',
+          text: `파일 내 같은 번호 (${seenPhones.get(record.phone)}행) — 1차는 한 번만 나갑니다`,
+        });
+      } else {
+        seenPhones.set(record.phone, record.line);
+      }
+    }
     if (phoneResult.extracted) {
       warnings.push({
         code: 'PHONE_EXTRACTED',
@@ -197,7 +219,7 @@ function parseUpload(buffer, fileName, options = {}) {
 }
 
 function summarize(rows) {
-  const counts = { total: rows.length, valid: 0, bad_phone: 0, duplicate: 0, canceled: 0, other: 0, warning: 0 };
+  const counts = { total: rows.length, valid: 0, bad_phone: 0, duplicate: 0, duplicate_phone: 0, canceled: 0, other: 0, warning: 0 };
   for (const row of rows) {
     if (row.valid) counts.valid++;
     else if (row.canceled) counts.canceled++;
@@ -205,6 +227,9 @@ function summarize(rows) {
     else if (row.errors.some((e) => e.code === 'DUP_FILE' || e.code === 'DUP_DB')) counts.duplicate++;
     else counts.other++;
     if (row.warnings.length) counts.warning++;
+    if (row.warnings.some((w) => w.code === 'DUPLICATE_PHONE' || w.code === 'DUPLICATE_IN_FILE')) {
+      counts.duplicate_phone++;
+    }
   }
   counts.invalid = counts.total - counts.valid;
   return counts;
