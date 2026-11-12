@@ -615,6 +615,16 @@ test('비상 복구: STONEKIM_ADMIN_RESET 으로 관리자 비밀번호를 되�
 test('주문 수기 등록: 고객명·번호만으로 등록되고 1차가 예약된다', async () => {
   const { cookie, csrf } = await login();
   const db = getDb();
+  // 날짜를 고정해 두면 그날이 지나는 순간 테스트가 깨진다. 오늘 기준으로 잡는다.
+  const { toDateString } = require('../src/util');
+  const plusDays = (n) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + n);
+    return toDateString(d);
+  };
+  const shipDate = plusDays(2);
+  const installDate = plusDays(10);
+  const expectedFirst = plusDays(12); // 시공예정일 +2일
 
   const page = await fetch(`${base}/admin/projects/new`, { headers: { cookie } });
   assert.equal(page.status, 200);
@@ -626,7 +636,7 @@ test('주문 수기 등록: 고객명·번호만으로 등록되고 1차가 예�
     body: new URLSearchParams({
       csrf, mode: 'schedule',
       customer_name: '전화주문고객', phone: '010-2468-1357',
-      ship_date: '2026-10-02', installation_date: '2026-10-20',
+      ship_date: shipDate, installation_date: installDate,
       product: '칼라카타 600×1200', site_name: '전화 현장',
     }),
     redirect: 'manual',
@@ -636,10 +646,10 @@ test('주문 수기 등록: 고객명·번호만으로 등록되고 1차가 예�
 
   // 주문번호를 비웠으므로 자동으로 만들어진다
   const project = db
-    .prepare("SELECT * FROM projects WHERE order_number LIKE 'M20261002-%' ORDER BY project_id DESC")
-    .get();
+    .prepare("SELECT * FROM projects WHERE order_number LIKE ? ORDER BY project_id DESC")
+    .get(`M${shipDate.replace(/-/g, '')}-%`);
   assert.ok(project, '주문번호가 자동 생성된다');
-  assert.equal(project.installation_date, '2026-10-20');
+  assert.equal(project.installation_date, installDate);
   assert.equal(project.message_excluded, 0);
 
   // 시공예정일 +2일로 1차가 잡힌다
@@ -647,7 +657,7 @@ test('주문 수기 등록: 고객명·번호만으로 등록되고 1차가 예�
     .prepare("SELECT * FROM messages WHERE project_id = ? AND message_type = 'FIRST'")
     .get(project.project_id);
   assert.equal(message.status, 'SCHEDULED');
-  assert.match(message.scheduled_at, /^2026-10-22/);
+  assert.ok(message.scheduled_at.startsWith(expectedFirst), `1차는 ${expectedFirst} 에 잡혀야 한다 (실제 ${message.scheduled_at})`);
 
   // 고객 화면 링크가 실제로 열려야 한다
   const upload = await fetch(`${base}/project/upload/${project.upload_token}`);
