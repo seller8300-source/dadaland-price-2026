@@ -179,6 +179,32 @@ h4+.scroller{margin-top:0}
 .fh{font-family:"Noto Serif KR",serif;font-weight:400;font-size:19px;
   color:var(--ink);margin-top:52px;padding-top:26px;border-top:1px solid var(--line)}
 .ss{display:block;margin-top:10px;font-size:12px;color:#8B939B}
+/* ---- 구성 등급 ---- */
+.g2{display:inline-block;background:#EFE6D2;color:#8A6D12;font-size:10.5px;font-weight:500;
+  font-family:"Noto Sans KR";padding:2px 7px;margin-left:8px;vertical-align:4px;letter-spacing:.02em}
+.gw{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:20px}
+.gc{border:1px solid var(--line);background:#fff;display:flex;flex-direction:column}
+.gc.pre{border:1.5px solid var(--gold);background:#FFFDF7}
+.gc .gh{padding:20px 22px 16px;border-bottom:1px solid var(--line)}
+.gc.pre .gh{border-bottom:1px solid #E8DCBB}
+.gc .gt{font-family:"Cormorant Garamond",serif;font-size:11px;letter-spacing:.26em;
+  color:#A9A99B;text-transform:uppercase}
+.gc.pre .gt{color:var(--gold-d)}
+.gc h5{font-family:"Noto Serif KR",serif;font-weight:400;font-size:19px;color:var(--ink);margin-top:6px}
+.gc .gd{font-size:12px;color:var(--body);line-height:1.75;margin-top:6px}
+.gp{padding:16px 22px 4px}
+.gp .row{display:flex;align-items:baseline;justify-content:space-between;
+  padding:9px 0;border-bottom:1px solid #F0EBE0}
+.gp .row:last-child{border-bottom:0}
+.gp .sz2{font-family:"Cormorant Garamond",serif;font-size:19px;color:var(--ink)}
+.gp .amt{font-family:"Cormorant Garamond",serif;font-size:21px;color:var(--ink)}
+.gp .amt small{font-family:"Noto Sans KR";font-size:11.5px;color:var(--body)}
+.gb{padding:14px 22px 20px;margin-top:auto}
+.gb dl div{display:flex;padding:7px 0;border-top:1px solid #F0EBE0;font-size:12.5px;line-height:1.7}
+.gb dt{width:76px;flex-shrink:0;color:#9AA2AA}
+.gb dd{flex:1;color:var(--ink)}
+.gb dd b{font-weight:500}
+@media(max-width:760px){ .gw{grid-template-columns:1fr} }
 /* ---- 한정 상품 ---- */
 .ltd{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:22px}
 .lcard{border:1px solid var(--line);background:#fff;overflow:hidden;
@@ -433,14 +459,14 @@ footer b{color:var(--ink);font-weight:500}
         <th class="mid" style="width:190px">야외</th>
       </tr></thead>
       <tbody>
-        <tr><td class="sz">2.1M</td>
-          <td class="mid">2,500,000<small>원</small></td>
+        <tr><td class="sz">2.1M<span class="g2">구성 2종</span></td>
+          <td class="mid">1,700,000<small>원 ~</small></td>
           <td class="mid same">2,500,000<small>원</small></td></tr>
         <tr><td class="sz">2.4M</td>
           <td class="mid">2,700,000<small>원</small></td>
           <td class="mid same">2,700,000<small>원</small></td></tr>
-        <tr><td class="sz">3M</td>
-          <td class="mid">3,000,000<small>원</small></td>
+        <tr><td class="sz">3M<span class="g2">구성 2종</span></td>
+          <td class="mid">2,400,000<small>원 ~</small></td>
           <td class="mid">3,500,000<small>원</small></td></tr>
         <tr><td class="sz">4M</td>
           <td class="mid">7,000,000<small>원</small></td>
@@ -462,19 +488,87 @@ footer b{color:var(--ink);font-weight:500}
   </div>
 
   <div class="note">
-    ※ 부가세 별도 금액입니다. &nbsp;|&nbsp; 운송비 별도 &nbsp;|&nbsp; <b>기본 디자인형 기준 단가입니다.</b><br>
+    ※ 부가세 별도 금액입니다. &nbsp;|&nbsp; 운송비 별도 &nbsp;|&nbsp; <b>기본 디자인 기준 단가입니다.</b><br>
     ※ 전기 작업은 <b>10M 이내 포함</b>이며, 초과 시 <b>M당 30,000원</b>이 추가됩니다.<br>
+    ※ <b>2.1M · 3M 실내</b>는 구성에 따라 <b>기본형 / 디자인형</b>으로 나뉩니다. (아래 비교 참조)<br>
+    ※ 2.1M · 3M <b>야외</b>는 구성 구분 없이 단일 단가입니다.<br>
     ※ 4M 이상은 실내 · 야외 단가가 동일합니다. &nbsp;|&nbsp; <b>5M 이상은 장비대가 포함된 금액입니다.</b>
   </div>
 
   <div class="flag">
-    <b>디자인 추가 시</b> — 기본 디자인형 기준 단가이며, 별도 디자인이 적용되거나
+    <b>디자인 추가 시</b> — 기본 디자인 기준 단가이며, 별도 디자인이 적용되거나
     기업 컬러 · 브랜드 콘셉트 · 추가 조형 요소가 들어갈 경우 추가 비용이 발생합니다.
+  </div>
+
+  <h4>2.1M · 3M 실내 — 구성 등급</h4>
+  <p class="sdesc">소형 트리는 <b>오너먼트 구성</b>에 따라 두 가지로 나뉩니다.
+    기본형은 정형 오너먼트로 단정하게, 디자인형은 부쉬와 열매 · 조명을 더해 입체감을 만듭니다.</p>
+
+  <div class="gw">
+
+    <div class="gc">
+      <div class="gh">
+        <div class="gt">Basic</div>
+        <h5>기본형</h5>
+        <div class="gd">일반 원형 오너먼트 · 리본 · 고드름으로 구성합니다.</div>
+      </div>
+      <div class="gp">
+        <div class="row"><span class="sz2">2.1M</span>
+          <span class="amt">1,700,000<small> 원</small></span></div>
+        <div class="row"><span class="sz2">3M</span>
+          <span class="amt">2,400,000<small> 원</small></span></div>
+      </div>
+      <div class="gb">
+        <dl>
+          <div><dt>구성</dt><dd>일반 원형 오너먼트 · 리본 · 고드름</dd></div>
+          <div><dt>오너먼트</dt><dd>2.1M <b>120개</b> &nbsp;·&nbsp; 3M <b>200개</b> 기준</dd></div>
+          <div><dt>선물상자</dt><dd>2.1M <b>4개</b> &nbsp;·&nbsp; 3M <b>6개</b></dd></div>
+          <div><dt>전기</dt><dd>전기선 <b>3M 이내</b> — 멀티탭 연결</dd></div>
+          <div><dt>타이머</dt><dd>미포함</dd></div>
+          <div><dt>운임</dt><dd><b>배송 · 회수비 별도</b><br><span style="font-size:11.5px;color:#9AA2AA">운임표 기준 적용</span></dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <div class="gc pre">
+      <div class="gh">
+        <div class="gt">Design</div>
+        <h5>디자인형</h5>
+        <div class="gd">부쉬 · 열매 · 조명 등을 활용한 디자인 연출이 들어갑니다.</div>
+      </div>
+      <div class="gp">
+        <div class="row"><span class="sz2">2.1M</span>
+          <span class="amt">2,500,000<small> 원</small></span></div>
+        <div class="row"><span class="sz2">3M</span>
+          <span class="amt">3,500,000<small> 원</small></span></div>
+      </div>
+      <div class="gb">
+        <dl>
+          <div><dt>구성</dt><dd>부쉬 · 열매 · 조명 등 <b>디자인 연출</b> 포함</dd></div>
+          <div><dt>오너먼트</dt><dd>디자인 구성에 따라 상이</dd></div>
+          <div><dt>선물상자</dt><dd><b>반원 구성 포함</b></dd></div>
+          <div><dt>전기</dt><dd>전기선 <b>10M 이내</b> 포함<br>
+            초과 시 <b>M당 25,000원</b> 추가</dd></div>
+          <div><dt>타이머</dt><dd>점 · 소등 <b>타이머 포함</b></dd></div>
+          <div><dt>운임</dt><dd><b>경기 1권역 포함</b></dd></div>
+        </dl>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    ※ <b>기본형은 배송 · 회수 운임이 별도</b>입니다. (운임표 기준)<br>
+    ※ <b>디자인형은 경기 1권역까지 운임 포함</b>이며,
+    경기 2권역 이상은 운임표 기준으로 별도 발생합니다.<br>
+    ※ 부가세 별도 &nbsp;|&nbsp; 야외 설치는 구성 구분 없이
+    <b>2.1M 2,500,000원 · 3M 3,500,000원</b>입니다.<br>
+    ※ 디자인형의 선물상자 <b>반원 구성</b>은 박스 7~9개 · 인형 1~2 · 대형 오너먼트 1~2 기준입니다.
   </div>
 
   <h4>프리미엄 — 대형 리얼트리 <span class="qty">수량 한정</span></h4>
   <p class="sdesc">PE + PVC 혼합 소재로 실제 전나무에 가까운 밀도와 질감을 구현한 상품입니다.
-    일반 골조형 <b>정상가의 1.5배</b> 기준이며, 사이즈별 입고 수량이 정해져 있습니다.</p>
+    사이즈별 입고 수량이 정해져 있어 소진 시 추가 진행이 어렵습니다.</p>
 <div class="scroller">
         <table class="tbl">
           <thead><tr>
@@ -486,7 +580,7 @@ footer b{color:var(--ink);font-weight:500}
           <tbody>
             <tr><td class="sz">3.5M</td>
               <td class="mid">4,500,000<small>원</small></td>
-              <td class="mid">5,250,000<small>원</small></td>
+              <td class="mid same">4,500,000<small>원</small></td>
               <td class="c"><b>4</b>ea</td></tr>
             <tr><td class="sz">5.5M</td>
               <td class="mid">12,750,000<small>원</small></td>
@@ -505,7 +599,7 @@ footer b{color:var(--ink);font-weight:500}
   </div>
 
   <h4>사이즈별 전구 수량</h4>
-  <p class="sdesc" style="margin-top:8px">기본 디자인형 기준 전구 수량이며,
+  <p class="sdesc" style="margin-top:8px">기본 디자인 기준 전구 수량이며,
     디자인 방향에 따라 <b>±15% 범위 내에서 조정</b>됩니다.</p>
   <div class="scroller">
     <table class="tbl">
@@ -683,7 +777,7 @@ footer b{color:var(--ink);font-weight:500}
       <div class="kk">P R E M I U M &nbsp; R E A L &nbsp; T R E E</div>
       <h3>대형 리얼트리</h3>
       <div class="lsub">PE + PVC 혼합 소재 · 실제 전나무에 가까운 밀도와 질감<br>
-        일반 골조형 <b>정상가의 1.5배</b> 기준입니다.</div>
+        가지 하나하나가 입체로 구성되어 가까이에서 볼수록 차이가 납니다.</div>
 <div class="scroller">
         <table class="tbl">
           <thead><tr>
@@ -695,7 +789,7 @@ footer b{color:var(--ink);font-weight:500}
           <tbody>
             <tr><td class="sz">3.5M</td>
               <td class="mid">4,500,000<small>원</small></td>
-              <td class="mid">5,250,000<small>원</small></td>
+              <td class="mid same">4,500,000<small>원</small></td>
               <td class="c"><b>4</b>ea</td></tr>
             <tr><td class="sz">5.5M</td>
               <td class="mid">12,750,000<small>원</small></td>
@@ -940,7 +1034,7 @@ footer b{color:var(--ink);font-weight:500}
         야외는 파손 · 손상 가능성이 높아 선물상자보다 데코 오브제를 권해드리며,
         선물상자로 진행할 경우 기준 단가의 1.5배가 적용됩니다.</div></div>
     <div class="ai"><button class="ah">디자인 추가 <span class="mk">+</span></button>
-      <div class="ab">기본 디자인형 기준 단가이며, 별도 디자인이 적용되거나 기업 컬러 · 브랜드 콘셉트 ·
+      <div class="ab">기본 디자인 기준 단가이며, 별도 디자인이 적용되거나 기업 컬러 · 브랜드 콘셉트 ·
         추가 조형 요소가 들어갈 경우 추가 비용이 발생합니다.</div></div>
   </div>
 </div>
@@ -959,7 +1053,7 @@ footer b{color:var(--ink);font-weight:500}
         <tr><td class="k">리본</td><td>18cm 30개 기본 포함</td><td>디자인에 따라 포함</td></tr>
         <tr><td class="k">오너먼트</td><td>선택 추가</td><td>기본 포함</td></tr>
         <tr><td class="k">하단 선물상자</td><td>미포함</td><td>옵션 (반원 · 원형)</td></tr>
-        <tr><td class="k">디자인</td><td>기본형</td><td>기본 디자인형 (추가 시 별도)</td></tr>
+        <tr><td class="k">디자인</td><td>기본 구성</td><td>기본 디자인<br><span style="font-size:12px;color:#8B939B">2.1M · 3M은 디자인형 선택 가능</span></td></tr>
         <tr><td class="k">배송 · 운송</td><td>왕복 100,000원 (선불 · 고정)</td><td>운송비 별도</td></tr>
         <tr><td class="k">부가세</td><td>포함가</td><td>별도</td></tr>
         <tr><td class="k">추천 고객</td><td>매장 · 사무실 · 가정</td><td>호텔 · 백화점 · 기업 · 상업공간</td></tr>
