@@ -164,7 +164,43 @@ function openChat() {
   return { link, label };
 }
 
+/** 고객이 시방서를 어디서 보나: 'openchat' 이면 오픈채팅방 공지사항 */
+function specPlace() {
+  const { getSetting } = require('./db');
+  return getSetting('spec_place', 'link') === 'openchat' ? 'openchat' : 'link';
+}
+
+/**
+ * 시방서를 오픈채팅방 공지로 안내하는 문구.
+ *
+ * 채팅방 자체는 할인·신제품 안내용이지만 그 말은 여기 적지 않는다.
+ * 알림톡은 광고성 문구가 들어가면 템플릿 심사에서 반려되므로,
+ * 메시지는 "시방서가 어디 있는지" 만 알리고 홍보는 방에 들어온 뒤에 한다.
+ */
+function guideViaChat(chat, productGroup) {
+  return [
+    '안녕하세요, 스톤킴입니다😊',
+    '',
+    '주문해주셔서 진심으로 감사합니다.',
+    '',
+    `제품 시공 방법에 대한 시방서를 ${chat.label} 공지사항에 올려두었습니다.`,
+    '시공 전 꼭 확인해 주세요.',
+    '자재 보관, 재단, 접착, 마감 주의사항이 담겨 있습니다.',
+    '',
+    `▶ 시방서 종류: ${productGroup}`,
+    '',
+    '채팅방에서 시공 관련 문의도 바로 답변드립니다.',
+    '',
+    '문의: 1866-1338',
+    '',
+    `▶ 오픈채팅방에서 시방서 확인하기: ${chat.link}`,
+  ].join('\n');
+}
+
 function guide(url, productGroup, chat = openChat()) {
+  // 오픈채팅방 안내로 설정했고 방 링크가 있으면 그쪽 문구를 쓴다.
+  if (chat && specPlace() === 'openchat') return guideViaChat(chat, productGroup);
+
   // 오픈채팅방을 설정해 두지 않았으면 그 두 줄은 아예 넣지 않는다.
   // 알림톡 템플릿은 승인된 문구와 글자가 같아야 하므로 빈 줄을 남겨선 안 된다.
   const chatLines = chat
@@ -210,4 +246,4 @@ function templateCode(messageType) {
   return env[messageType] || null;
 }
 
-module.exports = { buildBody, guide, openChat, templateCode, currentVariant, variantOf, VARIANTS, TYPE_LABEL, BUTTON_LABEL };
+module.exports = { buildBody, guide, openChat, specPlace, templateCode, currentVariant, variantOf, VARIANTS, TYPE_LABEL, BUTTON_LABEL };

@@ -193,6 +193,8 @@ const DEFAULT_SETTINGS = {
   // 시방서 안내에 같이 넣는 오픈채팅방. 비어 있으면 그 줄이 아예 빠진다.
   openchat_link: '',
   openchat_label: '스톤킴 시공 문의 오픈채팅방',
+  // 고객이 시방서를 어디서 보나. link = 시방서 링크로 바로, openchat = 오픈채팅방 공지사항.
+  spec_place: 'link',
 };
 
 /**

@@ -58,14 +58,23 @@ function groupFor(product) {
   return labels.join(', ');
 }
 
-/** 시방서 링크 (설정에 없으면 빈 문자열) */
+/** 오픈채팅방 공지사항으로 안내하는 설정인지 */
+function viaChat() {
+  return getSetting('spec_place', 'link') === 'openchat' && !!String(getSetting('openchat_link', '')).trim();
+}
+
+/**
+ * 고객이 눌러서 시방서를 보게 될 주소.
+ * 오픈채팅방 공지로 안내하도록 해두었으면 방 주소가 곧 시방서 주소다.
+ */
 function link() {
+  if (viaChat()) return String(getSetting('openchat_link', '')).trim();
   return String(getSetting('spec_link', '')).trim();
 }
 
-/** 시방서 안내를 자동 발송할지 여부. 링크가 없으면 켜져 있어도 보내지 않는다. */
+/** 시방서 안내를 자동 발송할지 여부. 보낼 주소가 없으면 켜져 있어도 보내지 않는다. */
 function enabled() {
   return getSetting('spec_enabled', '0') === '1' && !!link();
 }
 
-module.exports = { groups, groupFor, link, enabled, FALLBACK };
+module.exports = { groups, groupFor, link, viaChat, enabled, FALLBACK };
