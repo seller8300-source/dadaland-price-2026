@@ -156,7 +156,20 @@ function buildBody(messageType, uploadUrl, tiers = reward.current(), variant = c
  * 혜택·금액이 없는 순수 정보성이라 리워드/정보성 구분 없이 한 가지만 쓴다.
  * 승인된 알림톡 템플릿과 문구를 맞춰 둔다.
  */
-function guide(url, productGroup) {
+function openChat() {
+  const { getSetting } = require('./db');
+  const link = String(getSetting('openchat_link', '') || '').trim();
+  if (!link) return null;
+  const label = String(getSetting('openchat_label', '') || '').trim() || '오픈채팅방';
+  return { link, label };
+}
+
+function guide(url, productGroup, chat = openChat()) {
+  // 오픈채팅방을 설정해 두지 않았으면 그 두 줄은 아예 넣지 않는다.
+  // 알림톡 템플릿은 승인된 문구와 글자가 같아야 하므로 빈 줄을 남겨선 안 된다.
+  const chatLines = chat
+    ? ['', `시공 중 궁금한 점은 ${chat.label}에서 바로 물어보실 수 있습니다.`, '', `▶ 오픈채팅방 참여하기: ${chat.link}`]
+    : [];
   return [
     '안녕하세요, 스톤킴입니다😊',
     '',
@@ -167,6 +180,7 @@ function guide(url, productGroup) {
     '자재 보관, 재단, 접착, 마감 주의사항이 담겨 있습니다.',
     '',
     `▶ 시방서 종류: ${productGroup}`,
+    ...chatLines,
     '',
     '그 외에 궁금하신 사항이 있으시면 언제든지 연락주세요.',
     '',
@@ -196,4 +210,4 @@ function templateCode(messageType) {
   return env[messageType] || null;
 }
 
-module.exports = { buildBody, guide, templateCode, currentVariant, variantOf, VARIANTS, TYPE_LABEL, BUTTON_LABEL };
+module.exports = { buildBody, guide, openChat, templateCode, currentVariant, variantOf, VARIANTS, TYPE_LABEL, BUTTON_LABEL };

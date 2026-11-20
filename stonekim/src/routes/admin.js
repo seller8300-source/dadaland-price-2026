@@ -587,6 +587,8 @@ function settingsPage(req, res, url, session) {
         spec_enabled: getSetting('spec_enabled'),
         spec_link: getSetting('spec_link'),
         spec_groups: getSetting('spec_groups'),
+        openchat_link: getSetting('openchat_link'),
+        openchat_label: getSetting('openchat_label'),
       },
       audits,
       provider: messaging.providerLabel(),
@@ -632,6 +634,8 @@ async function settingsSave(req, res, session) {
   setSetting('dedupe_days', Math.max(0, Math.min(365, Math.round(Number(fields.dedupe_days) || 0))));
   setSetting('spec_enabled', fields.spec_enabled ? '1' : '0');
   setSetting('spec_link', String(fields.spec_link || '').trim().slice(0, 500));
+  setSetting('openchat_link', String(fields.openchat_link || '').trim().slice(0, 500));
+  setSetting('openchat_label', String(fields.openchat_label || '').trim().slice(0, 80));
   setSetting('spec_groups', String(fields.spec_groups || '')
     .split(/[\r\n]+/).map((line) => line.trim()).filter(Boolean).join('\n'));
   audit(session, 'SETTINGS_UPDATE', null, null, http.clientIp(req));

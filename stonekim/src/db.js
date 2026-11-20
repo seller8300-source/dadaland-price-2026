@@ -190,6 +190,9 @@ const DEFAULT_SETTINGS = {
   spec_link: '',
   // 한 줄에 하나씩 `품목코드=제품군`. 고객에게는 시방서 페이지의 어느 탭인지만 알려준다.
   spec_groups: 'SF=소프트스톤',
+  // 시방서 안내에 같이 넣는 오픈채팅방. 비어 있으면 그 줄이 아예 빠진다.
+  openchat_link: '',
+  openchat_label: '스톤킴 시공 문의 오픈채팅방',
 };
 
 /**
