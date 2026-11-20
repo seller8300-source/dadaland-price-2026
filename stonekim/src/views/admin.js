@@ -851,7 +851,32 @@ ${summary.other ? `<div class="flash err">기타 오류 ${summary.other}건은 �
   return layout({ title: '업로드 미리보기', active: '/admin/import', session, content, flash });
 }
 
-function settingsPage({ session, flash, settings, audits, provider, baseUrl, rewardTiers, sentToday, messagePreview }) {
+/** 솔라피에 등록된 템플릿 중 실제로 발송에 쓰이는 것만 보여준다 */
+function templateCard(templates) {
+  if (!templates || !templates.length) return '';
+  const rows = templates
+    .map(({ label, code, env }) => {
+      const value = code
+        ? `<code>${escapeHtml(code)}</code>`
+        : '<span class="muted">연결 안 됨 — 알림톡 대신 문자로 나갑니다</span>';
+      return `<tr><td style="white-space:nowrap">${escapeHtml(label)}</td><td>${value}</td>
+        <td class="small muted" style="white-space:nowrap">${escapeHtml(env)}</td></tr>`;
+    })
+    .join('');
+  return `
+<div class="card">
+  <h2>💬 연결된 알림톡 템플릿 <span class="sub">솔라피 목록에서 이 ID 를 찾으세요</span></h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>단계</th><th>템플릿 ID</th><th>환경변수</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>
+  <div class="hint" style="margin-top:10px">솔라피 템플릿 목록에는 사본과 구버전이 같이 쌓입니다.
+    <b>여기 적힌 ID 와 같은 것만 실제로 쓰입니다. 그 템플릿은 지우거나 수정하지 마세요.</b><br>
+    값을 바꾸려면 Render → Environment 에서 해당 환경변수를 고칩니다. 이 화면에서는 바꿀 수 없습니다.</div>
+</div>`;
+}
+
+function settingsPage({ session, flash, settings, audits, provider, baseUrl, rewardTiers, sentToday, messagePreview, templates }) {
   const auditRows = audits
     .map(
       (a) => `<tr>
@@ -947,6 +972,8 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
     </div>
   </div>
 </div>
+
+${templateCard(templates)}
 
 <div class="card">
   <h2>📄 시방서 안내 <span class="sub">주문 등록 즉시 · 앞으로 출고될 건만</span></h2>

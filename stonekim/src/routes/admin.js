@@ -594,6 +594,7 @@ function settingsPage(req, res, url, session) {
       },
       audits,
       provider: messaging.providerLabel(),
+      templates: messaging.templateStatus(),
       baseUrl: scheduler.baseUrl(),
       rewardTiers: rewardTiers.current(),
       sentToday: scheduler.sentToday(),

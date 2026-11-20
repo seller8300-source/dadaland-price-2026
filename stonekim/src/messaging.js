@@ -81,6 +81,21 @@ function configIssues() {
   return issues;
 }
 
+/**
+ * 지금 어떤 알림톡 템플릿이 연결되어 있는지.
+ * 솔라피 템플릿 목록에는 사본·구버전이 잔뜩 쌓이므로, 실제로 발송에 쓰는
+ * 템플릿 ID 를 화면에 보여줘야 어느 것을 손대면 안 되는지 알 수 있다.
+ */
+function templateStatus() {
+  const templates = require('./templates');
+  return [
+    ['시방서', 'GUIDE', 'STONEKIM_TPL_GUIDE'],
+    ['1차', 'FIRST', 'STONEKIM_TPL_FIRST'],
+    ['2차', 'SECOND', 'STONEKIM_TPL_SECOND'],
+    ['최종', 'FINAL', 'STONEKIM_TPL_FINAL'],
+  ].map(([label, type, env]) => ({ label, type, env, code: templates.templateCode(type) || null }));
+}
+
 function providerLabel() {
   const mode = provider();
   const name = { mock: '모의 발송 (mock · 실제 발송 없음)', solapi: '솔라피 알림톡/문자', http: 'HTTP 게이트웨이' }[mode] || mode;
@@ -247,6 +262,7 @@ async function deliver({ phone, body, messageType, variables }) {
 }
 
 module.exports = {
+  templateStatus,
   deliver,
   sendAlimtalk,
   sendSms,
