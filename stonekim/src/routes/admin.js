@@ -52,6 +52,8 @@ const FLASH = {
   user_missing: () => ['err', '해당 계정을 찾을 수 없습니다.'],
   user_self: () => ['err', '본인 계정은 여기서 바꿀 수 없습니다. 비밀번호 변경 화면을 쓰세요.'],
   user_last_owner: () => ['err', '마지막 관리자 계정은 끌 수 없습니다.'],
+  user_now_owner: () => ['ok', '관리자로 바꿨습니다. 다시 로그인하면 설정 메뉴가 보입니다.'],
+  user_now_staff: () => ['ok', '직원으로 바꿨습니다. 설정 메뉴가 더 이상 보이지 않습니다.'],
   user_enabled: () => ['ok', '계정을 다시 사용하도록 했습니다.'],
   user_disabled: () => ['ok', '계정 사용을 중지했습니다. 로그인되어 있던 세션도 끊었습니다.'],
   manual_created: () => ['ok', '주문을 등록했습니다.'],
@@ -800,6 +802,27 @@ async function usersSetActive(req, res, session, userId) {
   return http.redirect(res, flashUrl('/admin/users', active ? 'user_enabled' : 'user_disabled'));
 }
 
+/**
+ * 직원 ↔ 관리자 전환.
+ * 관리자는 설정까지 볼 수 있으므로 발송을 켜고 끄는 권한이 같이 넘어간다.
+ */
+async function usersSetRole(req, res, session, userId) {
+  const fields = await readFormBody(req, res);
+  if (!fields) return true;
+  if (!csrfOk(session, fields)) return http.redirect(res, flashUrl('/admin/users', 'csrf'));
+  const target = auth.getUser(userId);
+  if (!target) return http.redirect(res, flashUrl('/admin/users', 'user_missing'));
+  if (target.user_id === session.user_id) return http.redirect(res, flashUrl('/admin/users', 'user_self'));
+  const role = fields.value === 'OWNER' ? 'OWNER' : 'STAFF';
+  // 마지막 관리자를 직원으로 내리면 아무도 설정에 못 들어간다.
+  if (role === 'STAFF' && target.role === 'OWNER' && auth.countOwners() <= 1) {
+    return http.redirect(res, flashUrl('/admin/users', 'user_last_owner'));
+  }
+  auth.setRole(userId, role);
+  audit(session, 'USER_ROLE', target.username, role, http.clientIp(req));
+  return http.redirect(res, flashUrl('/admin/users', role === 'OWNER' ? 'user_now_owner' : 'user_now_staff'));
+}
+
 async function usersReset(req, res, url, session, userId) {
   const fields = await readFormBody(req, res);
   if (!fields) return true;
@@ -902,6 +925,8 @@ async function handle(req, res, url) {
   let params;
   if ((params = http.match('/admin/users/:id/active', pathname)) && req.method === 'POST')
     return usersSetActive(req, res, session, Number(params.id));
+  if ((params = http.match('/admin/users/:id/role', pathname)) && req.method === 'POST')
+    return usersSetRole(req, res, session, Number(params.id));
   if ((params = http.match('/admin/users/:id/reset', pathname)) && req.method === 'POST')
     return usersReset(req, res, url, session, Number(params.id));
 

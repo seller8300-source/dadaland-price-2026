@@ -1076,7 +1076,12 @@ function usersPage({ users, session, flash, newAccount }) {
       <td class="right">${
         self
           ? '<span class="small muted">본인 계정</span>'
-          : `<form method="post" action="/admin/users/${u.user_id}/reset" class="inline">
+          : `<form method="post" action="/admin/users/${u.user_id}/role" class="inline">
+               <input type="hidden" name="csrf" value="${escapeHtml(session.csrf)}">
+               <input type="hidden" name="value" value="${u.role === 'OWNER' ? 'STAFF' : 'OWNER'}">
+               <button class="btn sm ghost" type="submit">${u.role === 'OWNER' ? '직원으로' : '관리자로'}</button>
+             </form>
+             <form method="post" action="/admin/users/${u.user_id}/reset" class="inline">
                <input type="hidden" name="csrf" value="${escapeHtml(session.csrf)}">
                <button class="btn sm quiet" type="submit">비밀번호 초기화</button>
              </form>
