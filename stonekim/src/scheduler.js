@@ -334,7 +334,8 @@ async function sendScheduledMessage(row) {
     '#{최대리워드}': tiers.maxWords,
   };
   // 시방서 템플릿은 제품군만 쓴다. 빈 값으로 보내면 카카오가 발송을 거부한다.
-  if (isGuide) variables['#{제품군}'] = productGroup || spec.FALLBACK;
+  // 오픈채팅방 공지로 안내할 때는 문구에 제품군이 없으니 변수도 보내지 않는다.
+  if (isGuide && !spec.viaChat()) variables['#{제품군}'] = productGroup || spec.FALLBACK;
   const result = await deliver({ phone: row.phone, body, messageType: row.message_type, variables });
   const sentAt = nowIso();
   markMessage(row.message_id, result, body, sentAt, row.phone);

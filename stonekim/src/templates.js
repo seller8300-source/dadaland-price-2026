@@ -177,19 +177,20 @@ function specPlace() {
  * 알림톡은 광고성 문구가 들어가면 템플릿 심사에서 반려되므로,
  * 메시지는 "시방서가 어디 있는지" 만 알리고 홍보는 방에 들어온 뒤에 한다.
  */
-function guideViaChat(chat, productGroup) {
+function guideViaChat(chat) {
+  // 제품군은 넣지 않는다. 한 주문에 여러 제품이 섞이고, 방에는 어차피
+  // 전 제품 시방서가 다 올라가 있어서 하나만 짚으면 오히려 틀린 안내가 된다.
+  // 방은 공지 전용(고객 쓰기 막음)이라 "바로 답변" 같은 말도 쓰지 않는다.
   return [
     '안녕하세요, 스톤킴입니다😊',
     '',
     '주문해주셔서 진심으로 감사합니다.',
     '',
-    `제품 시공 방법에 대한 시방서를 ${chat.label} 공지사항에 올려두었습니다.`,
+    `제품 시공 방법이 담긴 시방서를 ${chat.label}에 올려두었습니다.`,
     '시공 전 꼭 확인해 주세요.',
     '자재 보관, 재단, 접착, 마감 주의사항이 담겨 있습니다.',
     '',
-    `▶ 시방서 종류: ${productGroup}`,
-    '',
-    '채팅방에서 시공 관련 문의도 바로 답변드립니다.',
+    '시방서 외에 시공 정보와 할인 안내도 이곳에서 함께 받아보실 수 있습니다.',
     '',
     '문의: 1866-1338',
     '',
@@ -199,7 +200,7 @@ function guideViaChat(chat, productGroup) {
 
 function guide(url, productGroup, chat = openChat()) {
   // 오픈채팅방 안내로 설정했고 방 링크가 있으면 그쪽 문구를 쓴다.
-  if (chat && specPlace() === 'openchat') return guideViaChat(chat, productGroup);
+  if (chat && specPlace() === 'openchat') return guideViaChat(chat);
 
   // 오픈채팅방을 설정해 두지 않았으면 그 두 줄은 아예 넣지 않는다.
   // 알림톡 템플릿은 승인된 문구와 글자가 같아야 하므로 빈 줄을 남겨선 안 된다.
