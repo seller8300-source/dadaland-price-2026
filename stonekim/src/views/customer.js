@@ -169,10 +169,10 @@ ${header('시공사진 등록', logoUrl)}
     <label class="picker" for="files" id="picker">
       <div class="plus">＋</div>
       <div class="label">사진 추가하기</div>
-      <div class="hint">최소 ${minPhotos}장 · 최대 ${maxPhotos}장 (여러 장 선택 가능)</div>
+      <div class="hint">최소 ${minPhotos}장 · 최대 ${maxPhotos}장<br>한 번에 여러 장 고르거나, 나눠서 담으셔도 됩니다.</div>
     </label>
     <div class="picknote" id="picknote"></div>
-    <input type="file" id="files" name="photos" accept="image/*,.heic,.heif" multiple style="display:none">
+    <input type="file" id="files" name="photos" accept="image/*" multiple style="display:none">
     <div class="thumbs" id="thumbs"></div>
 
     <div class="card guide" style="margin-top:18px">
@@ -271,26 +271,41 @@ function uploadScript(minPhotos, maxPhotos) {
     cnt.textContent=picked.length+' / '+MAX+'장';
   }
 
+  // 변환이 어떤 이유로든 끝나지 않으면 원본을 그대로 보낸다.
+  // 카톡 인앱 브라우저처럼 오래된 WebView 에서 toBlob / File 생성자가 없거나
+  // 콜백이 영영 안 오는 경우가 있는데, 그때 화면이 멈춘 것처럼 보이면 안 된다.
   function compress(file){
     return new Promise(function(resolve){
-      if(!window.createImageBitmap && !window.FileReader) return resolve(file);
-      var url=URL.createObjectURL(file); var img=new Image();
+      var settled=false;
+      function done(v){ if(settled) return; settled=true; resolve(v); }
+      var timer=setTimeout(function(){ done(file); }, 15000);
+      function finish(v){ clearTimeout(timer); done(v); }
+
+      if(!window.URL || !URL.createObjectURL || !document.createElement('canvas').getContext){
+        return finish(file);
+      }
+      var url;
+      try{ url=URL.createObjectURL(file); }catch(e){ return finish(file); }
+      var img=new Image();
       img.onload=function(){
         try{
           var w=img.naturalWidth, h=img.naturalHeight;
-          if(!w||!h){ URL.revokeObjectURL(url); return resolve(file); }
+          if(!w||!h){ URL.revokeObjectURL(url); return finish(file); }
           var scale=Math.min(1, MAXDIM/Math.max(w,h));
           var c=document.createElement('canvas'); c.width=Math.round(w*scale); c.height=Math.round(h*scale);
           c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+          if(!c.toBlob){ URL.revokeObjectURL(url); return finish(file); }
           c.toBlob(function(blob){
             URL.revokeObjectURL(url);
-            if(!blob || blob.size===0) return resolve(file);
+            if(!blob || blob.size===0) return finish(file);
             var name=(file.name||'photo').replace(/\\.[^.]+$/,'')+'.jpg';
-            resolve(new File([blob], name, {type:'image/jpeg'}));
+            var out=blob;
+            try{ out=new File([blob], name, {type:'image/jpeg'}); }catch(e){ out=blob; out.name=name; }
+            finish(out);
           },'image/jpeg',Q);
-        }catch(e){ URL.revokeObjectURL(url); resolve(file); }
+        }catch(e){ try{ URL.revokeObjectURL(url); }catch(e2){} finish(file); }
       };
-      img.onerror=function(){ URL.revokeObjectURL(url); resolve(file); }; // HEIC 디코드 불가 → 원본 전송
+      img.onerror=function(){ try{ URL.revokeObjectURL(url); }catch(e){} finish(file); }; // HEIC 디코드 불가 → 원본 전송
       img.src=url;
     });
   }
@@ -312,6 +327,15 @@ function uploadScript(minPhotos, maxPhotos) {
     input.value='';
     if(!files.length) return;
 
+    // 사진이 아닌 파일은 여기서 걸러낸다. 서버까지 보내면 한 장 때문에
+    // 전체 등록이 실패해서, 고객이 고른 사진이 전부 날아간다.
+    var bad=[];
+    files=files.filter(function(f){
+      if(f.type && !/^image\\//.test(f.type)){ bad.push(f.name||'파일'); return false; }
+      if(f.size===0){ bad.push(f.name||'파일'); return false; }
+      return true;
+    });
+
     // 사진이 많으면 압축에 몇 초씩 걸린다. 아무 표시가 없으면 멈춘 것처럼 보인다.
     var room=MAX-picked.length, over=files.length-room;
     var busy=files.slice(0, Math.max(0,room));
@@ -320,7 +344,7 @@ function uploadScript(minPhotos, maxPhotos) {
 
     for(var i=0;i<busy.length;i++){
       var f=busy[i];
-      if(f.size>20*1024*1024 && !/^image\\//.test(f.type)){ showErr('이미지 파일만 등록할 수 있습니다.'); continue; }
+      if(f.size>20*1024*1024){ bad.push((f.name||'파일')+' (용량 초과)'); continue; }
       var out=await compress(f);
       picked.push({file:out, url:URL.createObjectURL(out)});
       done++;
@@ -328,7 +352,9 @@ function uploadScript(minPhotos, maxPhotos) {
       render();
     }
 
-    if(over>0){
+    if(bad.length){
+      note('warn','사진이 아닌 파일 '+bad.length+'개는 제외했습니다. ('+bad.slice(0,2).join(', ')+(bad.length>2?' 외':'')+')');
+    } else if(over>0){
       note('warn','사진은 최대 '+MAX+'장까지 등록할 수 있습니다. 먼저 고르신 '+picked.length+'장만 등록되었고 나머지 '+over+'장은 제외했습니다.');
     } else if(picked.length>=MAX){
       note('warn','최대 '+MAX+'장까지 등록하셨습니다. 더 올리시려면 사진을 먼저 지워주세요.');

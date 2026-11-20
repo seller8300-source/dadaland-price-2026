@@ -46,27 +46,41 @@ function limits() {
 function validateFiles(files, { existingCount = 0, enforceMin = true } = {}) {
   const { min, max, maxBytes } = limits();
   const accepted = [];
+  // 사진이 아닌 파일 한 장 때문에 등록 전체를 막지 않는다.
+  // 고객이 10장을 어렵게 골라 올렸는데 1장 탓에 전부 날아가면 다시 하지 않는다.
+  const rejected = [];
   for (const file of files) {
     if (!file.data || file.data.length === 0) continue;
+    const label = file.filename || '파일';
     if (file.data.length > maxBytes) {
-      return { ok: false, error: `사진 1장 용량은 ${Math.floor(maxBytes / 1024 / 1024)}MB 이하여야 합니다.` };
+      rejected.push(`${label} (용량 초과)`);
+      continue;
     }
     const kind = sniff(file.data);
     if (!kind) {
-      return { ok: false, error: '이미지 파일(JPG·PNG·HEIC)만 등록할 수 있습니다.' };
+      rejected.push(label);
+      continue;
     }
     accepted.push({ ...file, kind });
   }
-  if (enforceMin && accepted.length + existingCount < min) {
-    return { ok: false, error: `사진은 최소 ${min}장 이상 등록해 주세요.` };
-  }
+  const excluded = rejected.length
+    ? ` 사진이 아닌 파일 ${rejected.length}개는 제외했습니다. (${rejected.slice(0, 2).join(', ')}${rejected.length > 2 ? ' 외' : ''})`
+    : '';
   if (accepted.length === 0) {
-    return { ok: false, error: '등록할 사진을 선택해 주세요.' };
+    return {
+      ok: false,
+      error: rejected.length
+        ? `이미지 파일(JPG·PNG·HEIC)만 등록할 수 있습니다.${excluded}`
+        : '등록할 사진을 선택해 주세요.',
+    };
+  }
+  if (enforceMin && accepted.length + existingCount < min) {
+    return { ok: false, error: `사진은 최소 ${min}장 이상 등록해 주세요.${excluded}` };
   }
   if (accepted.length + existingCount > max) {
     return { ok: false, error: `사진은 최대 ${max}장까지 등록할 수 있습니다.` };
   }
-  return { ok: true, accepted };
+  return { ok: true, accepted, rejected };
 }
 
 function relativeDir(projectId, now = new Date()) {
