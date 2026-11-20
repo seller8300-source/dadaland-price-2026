@@ -973,6 +973,12 @@ function settingsPage({ session, flash, settings, audits, provider, baseUrl, rew
     <div class="hint">위 칸을 <b>시방서 링크로 바로</b> 로 두면 시방서 줄 아래에 <b>“▶ 오픈채팅방 참여하기”</b> 가 한 줄 더 붙습니다. 비우면 그 줄이 아예 빠집니다.<br>
       <b>알림톡 템플릿에도 같은 문구·버튼이 승인되어 있어야</b> 카카오톡으로 나갑니다. 승인 전이면 문자로만 나갑니다.<br>
       메시지에 <b>할인·이벤트 얘기는 넣지 않습니다.</b> 광고성으로 분류되면 템플릿이 반려됩니다. 홍보는 고객이 방에 들어온 뒤에 하세요.</div></div>
+  <div class="field"><label>채팅방에 들어올 이유 <span class="sub">한 줄</span></label>
+    <input type="text" name="openchat_pitch" value="${escapeHtml(settings.openchat_pitch || '')}" style="width:100%;max-width:520px">
+    <div class="hint">시방서 안내 중간에 들어갑니다. 비우면 그 줄이 빠집니다.<br>
+      <b>이 단어들은 넣지 마세요 — 하나만 있어도 템플릿이 반려됩니다:</b>
+      <code>할인</code> <code>이벤트</code> <code>특가</code> <code>프로모션</code> <code>쿠폰</code> <code>세일</code> <code>무료</code> <code>증정</code> <code>혜택</code><br>
+      방에 무엇이 올라오는지만 적으면 통과합니다. 실제 할인 안내는 고객이 들어온 뒤 방에서 하시면 되고, 오픈채팅방은 카카오 심사 대상이 아닙니다.</div></div>
   <div class="field" style="margin-bottom:0"><label>제품군 판별 (한 줄에 <code>품목코드=제품군</code>)</label>
     <textarea name="spec_groups" rows="4" placeholder="SF=소프트스톤&#10;IP=콕스톤">${escapeHtml(settings.spec_groups || '')}</textarea>
     <div class="hint">품목명에 그 코드가 들어 있으면 해당 제품군으로 봅니다. <code>SF</code> 한 줄이면 <code>SF20-2</code>, <code>SF29</code> 까지 걸립니다.<br>

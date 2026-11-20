@@ -590,6 +590,7 @@ function settingsPage(req, res, url, session) {
         spec_place: getSetting('spec_place'),
         openchat_link: getSetting('openchat_link'),
         openchat_label: getSetting('openchat_label'),
+        openchat_pitch: getSetting('openchat_pitch'),
       },
       audits,
       provider: messaging.providerLabel(),
@@ -638,6 +639,7 @@ async function settingsSave(req, res, session) {
   setSetting('spec_place', fields.spec_place === 'openchat' ? 'openchat' : 'link');
   setSetting('openchat_link', String(fields.openchat_link || '').trim().slice(0, 500));
   setSetting('openchat_label', String(fields.openchat_label || '').trim().slice(0, 80));
+  setSetting('openchat_pitch', String(fields.openchat_pitch || '').trim().slice(0, 200));
   setSetting('spec_groups', String(fields.spec_groups || '')
     .split(/[\r\n]+/).map((line) => line.trim()).filter(Boolean).join('\n'));
   audit(session, 'SETTINGS_UPDATE', null, null, http.clientIp(req));
